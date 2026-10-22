@@ -1,0 +1,60 @@
+<!grove>
+<grove>
+    <head>
+        <title>Sapling</title>
+        <style src="sapling.bark"></style>
+        <script lang="walnut" src="sapling.wal"></script>
+    </head>
+    <body id="app" title="Sapling" app-id="sapling">
+        <page id="home" current>
+            <row class="topbar">
+                <text class="brand">Sapling</text>
+                <text class="tagline">physics simulations and sandboxes</text>
+                <div class="grow"></div>
+                <text id="version" class="muted"></text>
+            </row>
+            <column class="scroll">
+                <column class="home-inner">
+                    <h2 class="section-title">Simulations</h2>
+                    <row id="section-tabs" class="tabs"></row>
+                    <p id="section-about" class="muted"></p>
+                    <row id="sim-cards" class="cards"></row>
+                </column>
+            </column>
+        </page>
+
+        <page id="sim">
+            <row class="topbar">
+                <button id="go-home" class="ghost">&#8592; Simulations</button>
+                <text id="sim-title" class="brand small"></text>
+                <div class="grow"></div>
+                <button id="play" class="primary">Pause</button>
+                <button id="step" class="ghost" title="Advance one frame">Step</button>
+                <button id="reset" class="ghost">Reset</button>
+                <text class="muted">speed</text>
+                <input_select id="speed" class="speed">
+                    <option value="0.1">0.1&#215;</option>
+                    <option value="0.25">0.25&#215;</option>
+                    <option value="0.5">0.5&#215;</option>
+                    <option value="1">1&#215;</option>
+                    <option value="2">2&#215;</option>
+                    <option value="4">4&#215;</option>
+                    <option value="10">10&#215;</option>
+                </input_select>
+            </row>
+            <row id="workspace">
+                <column id="side" class="scroll">
+                    <p id="sim-about" class="about"></p>
+                    <h3 class="side-title">Settings</h3>
+                    <column id="params" class="params"></column>
+                    <h3 class="side-title">Readouts</h3>
+                    <column id="readouts" class="readouts"></column>
+                    <p id="sim-note" class="muted note"></p>
+                </column>
+                <column id="stage">
+                    <canvas id="view" />
+                </column>
+            </row>
+        </page>
+    </body>
+</grove>

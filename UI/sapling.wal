@@ -1,0 +1,222 @@
+import module.grove
+import module.strings
+import module.io
+
+string: current_section = "mechanics";
+string: last_page = "home";
+bool: playing = true;
+
+function call(const string&: name, const string&: arg) -> string;
+function el(const string&: tag, const string&: cls, const string&: label) -> grove::Element;
+function clear(grove::Element&: e) -> void;
+function tab2(const string&: a, const string&: b) -> string;
+function show_home() -> void;
+function build_tabs() -> void;
+function build_cards() -> void;
+function open_sim(const string&: id) -> void;
+function build_params() -> void;
+function update_readouts() -> void;
+function set_playing(bool: on) -> void;
+
+function call(const string&: name, const string&: arg) -> string {
+    return grove::call("sapling." + name, arg);
+} end function call
+
+function el(const string&: tag, const string&: cls, const string&: label) -> grove::Element {
+    grove::Element: e = grove::create_element(tag);
+    if (!cls.empty()) then {
+        e.set_attribute("class", cls);
+    }
+    if (!label.empty()) then {
+        e.set_inner_text(label);
+    }
+    return e;
+} end function el
+
+function clear(grove::Element&: e) -> void {
+    while (e.child_count() > 0l) {
+        e.child(0l).remove();
+    }
+} end function clear
+
+function tab2(const string&: a, const string&: b) -> string {
+    return a + "\t" + b;
+} end function tab2
+
+function show_home() -> void {
+    build_tabs();
+    build_cards();
+    last_page = "home";
+    grove::get_by_id("home").show_page();
+} end function show_home
+
+function build_tabs() -> void {
+    grove::Element: tabs = grove::get_by_id("section-tabs");
+    clear(tabs);
+    auto: rows = call("sections", "").split("\n");
+    for (long int: i = 0l; i < rows.size(); i += 1l) {
+        auto: f = rows[i].split("\t");
+        if (f.size() < 3l) then {
+            continue;
+        }
+        string: id = f[0];
+        grove::Element: t = el("div", "tab", f[1]);
+        if (id == current_section) then {
+            t.add_class("on");
+            grove::get_by_id("section-about").set_inner_text(f[2]);
+        }
+        t.on("click", [id](grove::Event&: e) -> void {
+            current_section = id;
+            build_tabs();
+            build_cards();
+        });
+        tabs.append_child(t);
+    }
+} end function build_tabs
+
+function build_cards() -> void {
+    grove::Element: cards = grove::get_by_id("sim-cards");
+    clear(cards);
+    auto: rows = call("simulations", current_section).split("\n");
+    for (long int: i = 0l; i < rows.size(); i += 1l) {
+        auto: f = rows[i].split("\t");
+        if (f.size() < 3l) then {
+            continue;
+        }
+        string: id = f[0];
+        grove::Element: c = el("column", "card", "");
+        c.append_child(el("p", "card-title", f[1]));
+        c.append_child(el("p", "card-text", f[2]));
+        c.on("click", [id](grove::Event&: e) -> void {
+            open_sim(id);
+        });
+        cards.append_child(c);
+    }
+} end function build_cards
+
+function open_sim(const string&: id) -> void {
+    auto: f = call("open", id).split("\t");
+    if (f.size() < 3l) then {
+        return;
+    }
+    grove::get_by_id("sim-title").set_inner_text(f[0]);
+    grove::get_by_id("sim-about").set_inner_text(f[1]);
+    grove::get_by_id("sim-note").set_inner_text(f[2]);
+    grove::get_by_id("speed").set_value_string("1");
+    set_playing(true);
+    build_params();
+    update_readouts();
+    last_page = "sim";
+    grove::get_by_id("sim").show_page();
+} end function open_sim
+
+function build_params() -> void {
+    grove::Element: box = grove::get_by_id("params");
+    clear(box);
+    auto: rows = call("params", "").split("\n");
+    for (long int: i = 0l; i < rows.size(); i += 1l) {
+        auto: f = rows[i].split("\t");
+        if (f.size() < 7l) then {
+            continue;
+        }
+        string: id = f[0];
+        grove::Element: p = el("column", "param", "");
+        grove::Element: head = el("row", "param-head", "");
+        string: label = f[1];
+        if (!f[6].empty()) then {
+            label = label + " (" + f[6] + ")";
+        }
+        head.append_child(el("text", "grow", label));
+        grove::Element: value = grove::create_element("input_string");
+        value.set_attribute("class", "param-value");
+        value.set_attribute("id", "pv-" + id);
+        value.set_value_string(f[2]);
+        head.append_child(value);
+        p.append_child(head);
+        grove::Element: s = grove::create_element("input_slider");
+        s.set_attribute("id", "ps-" + id);
+        s.set_attribute("min", f[3]);
+        s.set_attribute("max", f[4]);
+        s.set_attribute("step", f[5]);
+        s.set_value_float(std::io::parse_float<short float>(f[2]));
+        s.on("input", [id](grove::Event&: e) -> void {
+            string: v = call("set_param", tab2(id, e.target().value_float().to_string()));
+            grove::get_by_id("pv-" + id).set_value_string(v);
+        });
+        value.on("change", [id](grove::Event&: e) -> void {
+            string: v = call("set_param", tab2(id, e.target().value_string()));
+            if (!v.empty()) then {
+                grove::get_by_id("pv-" + id).set_value_string(v);
+                grove::get_by_id("ps-" + id).set_value_float(std::io::parse_float<short float>(v));
+            }
+        });
+        p.append_child(s);
+        box.append_child(p);
+    }
+} end function build_params
+
+function update_readouts() -> void {
+    grove::Element: box = grove::get_by_id("readouts");
+    auto: rows = call("readouts", "").split("\n");
+    long int: shown = 0l;
+    for (long int: i = 0l; i < rows.size(); i += 1l) {
+        auto: f = rows[i].split("\t");
+        if (f.size() < 2l) then {
+            continue;
+        }
+        if (shown < box.child_count()) then {
+            grove::Element: row = box.child(shown);
+            row.child(0l).set_inner_text(f[0]);
+            row.child(1l).set_inner_text(f[1]);
+        } else then {
+            grove::Element: row = el("row", "readout", "");
+            row.append_child(el("text", "readout-label", f[0]));
+            row.append_child(el("text", "readout-value", f[1]));
+            box.append_child(row);
+        }
+        shown += 1l;
+    }
+    while (box.child_count() > shown) {
+        box.child(box.child_count() - 1l).remove();
+    }
+} end function update_readouts
+
+function set_playing(bool: on) -> void {
+    playing = on;
+    if (on) then {
+        call("play", "1");
+        grove::get_by_id("play").set_inner_text("Pause");
+    } else then {
+        call("play", "0");
+        grove::get_by_id("play").set_inner_text("Play");
+    }
+} end function set_playing
+
+grove::get_by_id("go-home").on("click", [](grove::Event&: e) -> void {
+    call("close", "");
+    show_home();
+});
+grove::get_by_id("play").on("click", [](grove::Event&: e) -> void {
+    set_playing(!playing);
+});
+grove::get_by_id("step").on("click", [](grove::Event&: e) -> void {
+    set_playing(false);
+    call("step_once", "");
+    update_readouts();
+});
+grove::get_by_id("reset").on("click", [](grove::Event&: e) -> void {
+    call("reset", "");
+    update_readouts();
+});
+grove::get_by_id("speed").on("change", [](grove::Event&: e) -> void {
+    call("speed", e.target().value_string());
+});
+
+grove::set_interval(150.0, []() -> void {
+    if (last_page == "sim") then {
+        update_readouts();
+    }
+});
+
+grove::get_by_id("version").set_inner_text("v" + call("version", ""));
+show_home();

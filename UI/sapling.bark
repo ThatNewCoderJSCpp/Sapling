@@ -1,0 +1,264 @@
+body {
+    --bg: #1e1e2e;
+    --panel: #181825;
+    --card: #202031;
+    --line: #313244;
+    --text: #cdd6f4;
+    --muted: #9399b2;
+    --accent: #a6e3a1;
+    --hover: #2a2b3c;
+
+    size: 80vwidth 82vheight;
+    min-size: 720px 480px;
+    background: var(--bg);
+    color: var(--text);
+    accent-color: var(--accent);
+    font-size: 13px;
+    padding: 0;
+}
+
+page {
+    flex: 1;
+    gap: 0;
+}
+
+.grow {
+    flex: 1;
+}
+
+.hidden {
+    display: none;
+}
+
+.muted {
+    color: var(--muted);
+}
+
+.scroll {
+    flex: 1;
+    overflow: auto;
+}
+
+button {
+    background: var(--card);
+    color: var(--text);
+    border-color: var(--line);
+    border-width: 1px;
+    border-radius: 6px;
+    padding: 5px 12px;
+
+    &:hover {
+        background: var(--hover);
+    }
+}
+
+button.ghost {
+    background: var(--bg);
+    border-color: var(--bg);
+
+    &:hover {
+        background: var(--hover);
+        border-color: var(--line);
+    }
+}
+
+button.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--bg);
+    font-weight: bold;
+    min-width: 80px;
+}
+
+input_string,
+input_select {
+    background: var(--panel);
+    color: var(--text);
+    border-color: var(--line);
+    border-width: 1px;
+    border-radius: 6px;
+}
+
+.topbar {
+    padding: 11px 18px;
+    gap: 10px;
+    row-gap: 8px;
+    font-size: 15px;
+    flex-wrap: wrap;
+    align-items: center;
+    background: var(--panel);
+    border-color: var(--line);
+    border-width: 0 0 1px 0;
+    user-select: none;
+}
+
+.brand {
+    font-size: 22px;
+    font-weight: bold;
+    color: var(--accent);
+}
+
+.brand.small {
+    font-size: 18px;
+}
+
+.tagline {
+    color: var(--muted);
+    font-size: 14px;
+}
+
+.speed {
+    width: 90px;
+}
+
+.home-inner {
+    padding: 18px 32px 30px 32px;
+    gap: 10px;
+    width: 100%;
+    max-width: 1800px;
+    align-self: center;
+}
+
+.section-title {
+    margin: 12px 0 4px 0;
+    font-size: 20px;
+}
+
+.tabs {
+    gap: 6px;
+    flex-wrap: wrap;
+    user-select: none;
+}
+
+.tab {
+    display: inline-block;
+    padding: 7px 18px;
+    font-size: 13px;
+    border-radius: 18px;
+    background: var(--card);
+    border-color: var(--line);
+    border-width: 1px;
+    cursor: pointer;
+
+    &:hover {
+        background: var(--hover);
+    }
+}
+
+.tab.on {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--bg);
+    font-weight: bold;
+}
+
+.cards {
+    gap: 12px;
+    row-gap: 12px;
+    flex-wrap: wrap;
+}
+
+.card {
+    width: 250px;
+    min-width: 0;
+    padding: 14px;
+    gap: 4px;
+    background: var(--card);
+    border-color: var(--line);
+    border-width: 1px;
+    border-radius: 10px;
+    cursor: pointer;
+    user-select: none;
+
+    &:hover {
+        background: var(--hover);
+        border-color: var(--accent);
+    }
+}
+
+.card-title {
+    font-weight: bold;
+    font-size: 14px;
+}
+
+.card-text {
+    color: var(--muted);
+    font-size: 12px;
+}
+
+#workspace {
+    flex: 1;
+    gap: 0;
+}
+
+#side {
+    width: 30%;
+    min-width: 270px;
+    max-width: 420px;
+    padding: 12px 14px;
+    gap: 8px;
+    background: var(--panel);
+    border-color: var(--line);
+    border-width: 0 1px 0 0;
+}
+
+.side-title {
+    margin: 10px 0 2px 0;
+    font-size: 14px;
+    color: var(--muted);
+}
+
+.about {
+    font-size: 13px;
+}
+
+.note {
+    font-size: 12px;
+    margin: 10px 0 0 0;
+}
+
+.params {
+    gap: 8px;
+}
+
+.param {
+    gap: 2px;
+}
+
+.param-head {
+    gap: 6px;
+    align-items: center;
+}
+
+.param-value {
+    width: 90px;
+    font-family: monospace;
+}
+
+.readouts {
+    gap: 4px;
+}
+
+.readout {
+    gap: 8px;
+}
+
+.readout-label {
+    color: var(--muted);
+    width: 45%;
+}
+
+.readout-value {
+    font-family: monospace;
+    flex: 1;
+}
+
+#stage {
+    flex: 1;
+    gap: 0;
+    min-width: 320px;
+}
+
+#view {
+    flex: 1;
+}
