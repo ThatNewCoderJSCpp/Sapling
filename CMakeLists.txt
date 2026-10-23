@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.18)
-project(sapling VERSION 0.1.1 DESCRIPTION "Sapling: physics simulations and sandboxes built with Fizmo, Grove and Walnut" LANGUAGES C CXX)
+project(sapling VERSION 0.1.2 DESCRIPTION "Sapling: physics simulations and sandboxes built with Fizmo, Grove and Walnut" LANGUAGES C CXX)
 
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
@@ -11,9 +11,16 @@ option(SAPLING_WITH_WALNUT "Build Walnut alongside Grove so Sapling's Walnut scr
 option(SAPLING_BUILD_TESTS "Build the Sapling tests" ON)
 option(SAPLING_PACKAGE "Make release packages: sapling with its window and compiled script built in, linked so it runs without a compiler" OFF)
 option(SAPLING_BUNDLE "Run sapling-host --bundle as part of the build to make sapling with its window built in (turn off when cross-compiling, then bundle on the target)" ON)
-set(SAPLING_FIZMO_TAG "v0.2.39" CACHE STRING "Fizmo git tag to fetch (needs the numerics component)")
-set(SAPLING_GROVE_TAG "v0.1.49" CACHE STRING "Grove git tag to fetch")
-set(SAPLING_WALNUT_TAG "v0.1.34" CACHE STRING "Walnut git tag Grove fetches")
+set(SAPLING_FIZMO_TAG "v0.3.1" CACHE STRING "Fizmo git tag to fetch (needs the numerics component)")
+set(SAPLING_GROVE_TAG "v0.2.2" CACHE STRING "Grove git tag to fetch")
+set(SAPLING_WALNUT_TAG "v0.2.2" CACHE STRING "Walnut git tag Grove fetches")
+
+if(ANDROID)
+    set(SAPLING_WITH_WALNUT OFF CACHE BOOL "" FORCE)
+    set(SAPLING_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+    set(SAPLING_PACKAGE OFF CACHE BOOL "" FORCE)
+    set(SAPLING_BUNDLE OFF CACHE BOOL "" FORCE)
+endif()
 
 if(NOT CMAKE_RUNTIME_OUTPUT_DIRECTORY)
     set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
@@ -23,6 +30,7 @@ set(GROVE_BUILD_RUNTIME ON CACHE BOOL "" FORCE)
 set(GROVE_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(GROVE_WITH_WALNUT ${SAPLING_WITH_WALNUT} CACHE BOOL "" FORCE)
 set(GROVE_WALNUT_TAG ${SAPLING_WALNUT_TAG} CACHE STRING "" FORCE)
+set(GROVE_FIZMO_TAG ${SAPLING_FIZMO_TAG} CACHE STRING "" FORCE)
 
 include(FetchContent)
 set(SAPLING_FETCH_EXTRA "")
@@ -72,6 +80,23 @@ target_link_libraries(sapling_core PUBLIC fizmo::numerics)
 find_package(Threads REQUIRED)
 target_link_libraries(sapling_core PUBLIC Threads::Threads)
 sapling_warnings(sapling_core)
+
+if(ANDROID)
+    set(SAPLING_ANDROID_LIBS_DIR "${CMAKE_BINARY_DIR}/android-libs" CACHE PATH "Where the Android build puts <abi>/libsapling_android.so for grove build --runtime-lib")
+    add_library(sapling_android SHARED Tools/sapling.cpp)
+    target_link_libraries(sapling_android PRIVATE sapling_core grove::core grove::runtime)
+    target_compile_definitions(sapling_android PRIVATE "SAPLING_VERSION_STRING=\"${PROJECT_VERSION}\"")
+    target_link_options(sapling_android PRIVATE
+        "LINKER:-z,max-page-size=16384"
+        "LINKER:-u,ANativeActivity_onCreate"
+        "LINKER:--gc-sections"
+        "$<$<NOT:$<CONFIG:Debug>>:LINKER:--strip-debug>"
+        "LINKER:--version-script=${grove_SOURCE_DIR}/cmake/android_exports.map")
+    set_property(TARGET sapling_android APPEND PROPERTY LINK_DEPENDS "${grove_SOURCE_DIR}/cmake/android_exports.map")
+    set_target_properties(sapling_android PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${SAPLING_ANDROID_LIBS_DIR}/${ANDROID_ABI}")
+    sapling_warnings(sapling_android)
+    return()
+endif()
 
 set(SAPLING_BUNDLE_FLAGS "")
 if(SAPLING_PACKAGE)
@@ -142,6 +167,9 @@ if(SAPLING_PACKAGE)
             set(_sapling_platform windows-mingw64)
         endif()
         set(CPACK_GENERATOR ZIP)
+    elseif(APPLE)
+        set(_sapling_platform macos-${_sapling_arch})
+        set(CPACK_GENERATOR TGZ)
     else()
         target_link_options(sapling-host PRIVATE -static-libstdc++ -static-libgcc)
         set(_sapling_platform linux-${_sapling_arch})

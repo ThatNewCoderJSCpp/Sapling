@@ -6,6 +6,16 @@
 #include <grove/grove.hpp>
 #include <grove/runtime/runtime.hpp>
 
+#if defined(__ANDROID__)
+#ifndef FIZMO
+#define FIZMO
+#endif
+#ifndef FIZMO_GRAPHICS
+#define FIZMO_GRAPHICS
+#endif
+#include <fizmo/includes.hpp>
+#endif
+
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -62,7 +72,7 @@ std::vector<std::string> fields_of(const std::vector<std::string>& args) {
     return args;
 }
 
-fs::path data_dir() {
+[[maybe_unused]] fs::path data_dir() {
     const std::string over = env("SAPLING_DATA_DIR");
     if (!over.empty()) return over;
 #if defined(_WIN32)
@@ -77,7 +87,7 @@ fs::path data_dir() {
     return fs::current_path() / "sapling-data";
 }
 
-std::string find_ui() {
+[[maybe_unused]] std::string find_ui() {
     std::vector<fs::path> candidates;
     const std::string over = env("SAPLING_UI_DIR");
     if (!over.empty()) candidates.push_back(over);
@@ -228,6 +238,7 @@ private:
     std::chrono::steady_clock::time_point m_last;
 };
 
+#if !defined(__ANDROID__)
 int bundle_ui(const std::string& output, bool portable) {
     const std::string ui = find_ui();
     if (ui.empty()) {
@@ -250,8 +261,11 @@ int bundle_ui(const std::string& output, bool portable) {
     return 0;
 }
 
+#endif
+
 } // namespace
 
+#if !defined(__ANDROID__)
 int main(int argc, char** argv) {
     bool check = false;
     for (int i = 1; i < argc; ++i) {
@@ -322,3 +336,69 @@ int main(int argc, char** argv) {
     app->install();
     return grove::runtime::run(*project, options);
 }
+#endif
+
+#if defined(__ANDROID__)
+namespace {
+
+int show_start_error(fizmo::android::App& app, const std::string& message) {
+    fizmo::android::log(fizmo::android::LogLevel::Error, "sapling", message);
+    fizmo::graphics::Renderer renderer(app.surface());
+    renderer.bind();
+    fizmo::android::Event e;
+    while (app.running()) {
+        bool redraw = false;
+        while (app.poll(e, 250)) {
+            if (e.type == fizmo::android::EventType::Back) app.finish();
+            redraw = true;
+        }
+        if (!redraw || !renderer.is_bound()) continue;
+        const float k = app.density();
+        const fizmo::android::Insets in = app.content_insets();
+        const int x = in.left + static_cast<int>(24 * k);
+        const int y = in.top + static_cast<int>(32 * k);
+        const unsigned w = app.surface().width() > static_cast<unsigned>(x * 2) ? app.surface().width() - static_cast<unsigned>(x * 2) : app.surface().width();
+        renderer.begin_frame();
+        renderer.clear(fizmo::colors::Color(30, 30, 36));
+        renderer.draw_text(x, y, w, static_cast<unsigned>(60 * k), std::string("Sapling couldn't start"), fizmo::text::TextStyle(22.0 * k, fizmo::colors::Color(243, 139, 168)));
+        renderer.draw_text(x, y + static_cast<int>(48 * k), w, app.surface().height(), message, fizmo::text::TextStyle(15.0 * k, fizmo::colors::Color(205, 214, 244)));
+        renderer.present();
+    }
+    return 1;
+}
+
+} // namespace
+
+int fizmo_android_main(fizmo::android::App& app) {
+    fizmo::android::redirect_stdio("sapling");
+    const std::string data = app.internal_data_path().empty() ? std::string("/data/local/tmp") : app.internal_data_path();
+    std::error_code ec;
+    fs::create_directories(fs::path(data) / "data", ec);
+    setenv("HOME", data.c_str(), 1);
+    setenv("XDG_DATA_HOME", (fs::path(data) / "share").string().c_str(), 1);
+    setenv("XDG_CONFIG_HOME", (fs::path(data) / "config").string().c_str(), 1);
+    setenv("XDG_CACHE_HOME", (fs::path(data) / "cache").string().c_str(), 1);
+    setenv("TMPDIR", app.cache_path().c_str(), 1);
+    setenv("SAPLING_DATA_DIR", (fs::path(data) / "data").string().c_str(), 1);
+
+    const std::optional<std::string> text = app.assets().read("grove/app.bundle");
+    if (!text) return show_start_error(app, "this APK has no grove/app.bundle asset; build it again with grove build");
+    std::optional<grove::Bundle> bundle = grove::parse_bundle(*text);
+    if (!bundle) return show_start_error(app, "grove/app.bundle is damaged; build Sapling again");
+
+    grove::AppLoadOptions options;
+    options.root = data;
+    options.cache_dir = app.cache_path();
+    options.module_dir = app.native_library_dir();
+    grove::LoadedApp loaded;
+    std::string error;
+    if (!grove::load_app(*bundle, loaded, error, options)) return show_start_error(app, error);
+
+    auto shell = std::make_unique<App>(loaded.project);
+    shell->install();
+    grove::runtime::RunOptions run;
+    run.window_id = loaded.window_id;
+    run.scripts = true;
+    return grove::runtime::run_android(loaded.project, app, &loaded.scripts, run);
+}
+#endif // __ANDROID__

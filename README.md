@@ -48,4 +48,24 @@ Adding a simulation: write a class deriving from `Simulation` in `Source/Simulat
 
 ## Branches and releases
 
-Work happens on `dev`, and `main` is fast-forwarded to it. Pushes to either branch run CI (`.github/workflows/ci.yml`). Pushing a `v*` tag runs `.github/workflows/release.yml`, which builds Linux (x86_64, arm64) and Windows (x86_64, i686, arm64 with llvm-mingw) packages and attaches them to the release. The tag has to match `VERSION` in `CMakeLists.txt`.
+Work happens on `dev`, and `main` is fast-forwarded to it. Pushes to either branch run CI (`.github/workflows/ci.yml`). Pushing a `v*` tag runs `.github/workflows/release.yml`, which builds Linux (x86_64, arm64), macOS (arm64, x86_64), Android (one APK) and Windows (x86_64, i686, arm64 with llvm-mingw) packages and attaches them to the release. The tag has to match `VERSION` in `CMakeLists.txt`.
+
+### macOS
+
+`Sapling-<version>-macos-arm64.tar.gz` is for Apple Silicon Macs and `macos-x86_64` for Intel Macs (macOS 11 or newer). Sapling uses a few libraries that macOS doesn't come with, so install them once with [Homebrew](https://brew.sh):
+
+```sh
+brew install freetype harfbuzz fontconfig jpeg-turbo openssl@3
+```
+
+The download isn't signed by Apple, so macOS refuses to open it at first. Remove the download flag once, then run it:
+
+```sh
+xattr -dr com.apple.quarantine Sapling-*
+./Sapling-*/sapling
+```
+
+### Android
+
+`Sapling-<version>-android.apk` runs on phones, tablets and Chromebooks. Copy it to the phone and open it there (Android asks once to allow installing apps from that source), or install it over USB with `adb install -r Sapling-*-android.apk`. The release workflow's `.github/scripts/android-apk.sh` builds it: a desktop `grove` and `walnut`, then `libsapling_android.so` and Grove's Android kit for each ABI with the Android NDK, then `grove build --target android` compiles the script for the phone and makes the APK. Signing uses the `SAPLING_KEYSTORE_BASE64`, `SAPLING_KEYSTORE_PASS` and `SAPLING_KEY_ALIAS` secrets when they're set; without them each build gets a new debug key, so an older install has to be uninstalled first.
+
