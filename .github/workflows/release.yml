@@ -354,6 +354,7 @@ jobs:
 
       - name: Show the libraries sapling needs
         run: |
+          ls -la build/bin/lib
           for exe in build/bin/sapling; do
             otool -L $exe
           done
@@ -370,6 +371,34 @@ jobs:
           $app/sapling --version
           $app/sapling --check | tee check.txt
           grep "built-in window ok, 1 compiled script" check.txt
+
+      - name: Check the package doesn't need Homebrew
+        run: |
+          app=$(echo smoke/Sapling-*)
+          homebrew="/opt/homebrew|/usr/local/(opt|Cellar|lib)/"
+          ls -la $app/lib
+          for f in $app/sapling $app/lib/*.dylib; do
+            if otool -L "$f" | tail -n +2 | grep -E "$homebrew"; then
+              echo "::error::$f still links to Homebrew's copy of a library"
+              exit 1
+            fi
+          done
+          rm -rf smoke/cache
+          XDG_CACHE_HOME=$PWD/smoke/cache DYLD_PRINT_LIBRARIES=1 $app/sapling --check 2> dyld.txt
+          if grep -E "$homebrew" dyld.txt; then
+            echo "::error::sapling loaded a library from Homebrew instead of its own lib folder"
+            exit 1
+          fi
+          found=0
+          for m in $(find smoke/cache -type f -name 'script*'); do
+            found=1
+            otool -L "$m"
+            if otool -L "$m" | tail -n +2 | grep -E "$homebrew"; then
+              echo "::error::the compiled script $m links to Homebrew"
+              exit 1
+            fi
+          done
+          if [ "$found" = 0 ]; then echo "::warning::--check didn't unpack the compiled script, so it wasn't checked"; fi
 
       - uses: actions/upload-artifact@v4
         with:

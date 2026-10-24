@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.18)
-project(sapling VERSION 0.1.2 DESCRIPTION "Sapling: physics simulations and sandboxes built with Fizmo, Grove and Walnut" LANGUAGES C CXX)
+project(sapling VERSION 0.1.3 DESCRIPTION "Sapling: physics simulations and sandboxes built with Fizmo, Grove and Walnut" LANGUAGES C CXX)
 
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
@@ -11,9 +11,9 @@ option(SAPLING_WITH_WALNUT "Build Walnut alongside Grove so Sapling's Walnut scr
 option(SAPLING_BUILD_TESTS "Build the Sapling tests" ON)
 option(SAPLING_PACKAGE "Make release packages: sapling with its window and compiled script built in, linked so it runs without a compiler" OFF)
 option(SAPLING_BUNDLE "Run sapling-host --bundle as part of the build to make sapling with its window built in (turn off when cross-compiling, then bundle on the target)" ON)
-set(SAPLING_FIZMO_TAG "v0.3.1" CACHE STRING "Fizmo git tag to fetch (needs the numerics component)")
-set(SAPLING_GROVE_TAG "v0.2.2" CACHE STRING "Grove git tag to fetch")
-set(SAPLING_WALNUT_TAG "v0.2.2" CACHE STRING "Walnut git tag Grove fetches")
+set(SAPLING_FIZMO_TAG "v0.3.3" CACHE STRING "Fizmo git tag to fetch (needs the numerics component)")
+set(SAPLING_GROVE_TAG "v0.2.4" CACHE STRING "Grove git tag to fetch")
+set(SAPLING_WALNUT_TAG "v0.2.5" CACHE STRING "Walnut git tag Grove fetches")
 
 if(ANDROID)
     set(SAPLING_WITH_WALNUT OFF CACHE BOOL "" FORCE)
@@ -170,6 +170,15 @@ if(SAPLING_PACKAGE)
     elseif(APPLE)
         set(_sapling_platform macos-${_sapling_arch})
         set(CPACK_GENERATOR TGZ)
+        set(_sapling_mac_libs "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/lib")
+        foreach(t sapling-host)
+            add_custom_command(TARGET ${t} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} "-DFILES=$<TARGET_FILE:${t}>" "-DLIB_DIR=${_sapling_mac_libs}"
+                    -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/macos_bundle_libs.cmake"
+                COMMENT "Copying the libraries ${t} needs into ${_sapling_mac_libs}"
+                VERBATIM)
+        endforeach()
+        install(DIRECTORY "${_sapling_mac_libs}/" DESTINATION lib COMPONENT sapling USE_SOURCE_PERMISSIONS)
     else()
         target_link_options(sapling-host PRIVATE -static-libstdc++ -static-libgcc)
         set(_sapling_platform linux-${_sapling_arch})
