@@ -322,19 +322,24 @@ public:
 
     void draw(Canvas& c, const Theme& th) const override {
         c.fit(-6.0, 6.0, -4.0, 4.0, 0.02);
-        c.clear(th.background);
-        double x0, x1, y0, y1;
-        c.visible(x0, x1, y0, y1);
         const double R = parameter("R");
-        const num::ScalarGrid2 g = num::sample_grid([this, R](double x, double y) {
-            return std::hypot(x, y) < R ? std::nan("") : stream(Vec2{ x, y });
-        }, x0, x1, y0, y1, 241, 161);
         const double U = parameter("U");
-        for (int k = -14; k <= 14; ++k) {
-            const double level = 0.32 * U * k;
-            const std::vector<num::Point2> seg = num::marching_squares(g, level);
-            const Color col = k == 0 ? mix(th.background, th.accent, 0.8) : mix(th.background, th.accent, 0.35);
-            for (std::size_t i = 0; i + 1 < seg.size(); i += 2) c.line(Vec2{ seg[i].x, seg[i].y }, Vec2{ seg[i + 1].x, seg[i + 1].y }, col, 1.2);
+        const std::vector<double> key = { U, R, parameter("gamma"), static_cast<double>(c.width()), static_cast<double>(c.height()), static_cast<double>(th.background.r), static_cast<double>(th.background.g), static_cast<double>(th.background.b), static_cast<double>(th.accent.r), static_cast<double>(th.accent.g), static_cast<double>(th.accent.b) };
+        if (key != m_background_key || !c.restore(m_background)) {
+            c.clear(th.background);
+            double x0, x1, y0, y1;
+            c.visible(x0, x1, y0, y1);
+            const num::ScalarGrid2 g = num::sample_grid([this, R](double x, double y) {
+                return std::hypot(x, y) < R ? std::nan("") : stream(Vec2{ x, y });
+            }, x0, x1, y0, y1, 241, 161);
+            for (int k = -14; k <= 14; ++k) {
+                const double level = 0.32 * U * k;
+                const std::vector<num::Point2> seg = num::marching_squares(g, level);
+                const Color col = k == 0 ? mix(th.background, th.accent, 0.8) : mix(th.background, th.accent, 0.35);
+                for (std::size_t i = 0; i + 1 < seg.size(); i += 2) c.line(Vec2{ seg[i].x, seg[i].y }, Vec2{ seg[i + 1].x, seg[i + 1].y }, col, 1.2);
+            }
+            m_background = c.pixels();
+            m_background_key = key;
         }
         for (std::size_t i = 0; i < m_tracers.size(); ++i) c.disc(m_tracers[i], 2.2, th.yellow);
         c.disc_world(Vec2{ 0.0, 0.0 }, R, mix(th.background, th.muted, 0.5));
@@ -396,6 +401,8 @@ private:
 
     std::vector<Vec2> m_tracers;
     std::vector<double> m_age;
+    mutable std::vector<std::uint8_t> m_background;
+    mutable std::vector<double> m_background_key;
 };
 
 class FieldLines : public Simulation {

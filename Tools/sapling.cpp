@@ -209,7 +209,7 @@ private:
         double dt = std::chrono::duration<double>(now - m_last).count();
         m_last = now;
         if (!m_sim || !m_canvas) return;
-        dt = std::min(dt, 0.05);
+        dt = std::min(dt, 0.1);
         if (m_playing) {
             m_sim->step(dt * m_speed * m_sim->suggested_speed());
             m_dirty = true;

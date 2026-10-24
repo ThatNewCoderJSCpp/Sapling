@@ -93,7 +93,7 @@ input_select {
 }
 
 .brand {
-    font-size: 22px;
+    font-size: 24px;
     font-weight: bold;
     color: var(--accent);
 }
@@ -112,29 +112,35 @@ input_select {
 }
 
 .home-inner {
-    padding: 18px 32px 30px 32px;
-    gap: 10px;
+    padding: 24px 40px 40px 40px;
+    gap: 14px;
     width: 100%;
     max-width: 1800px;
     align-self: center;
 }
 
 .section-title {
-    margin: 12px 0 4px 0;
-    font-size: 20px;
+    margin: 12px 0 6px 0;
+    font-size: 28px;
+}
+
+#section-about {
+    font-size: 16px;
+    margin: 2px 0 8px 0;
 }
 
 .tabs {
-    gap: 6px;
+    gap: 10px;
+    row-gap: 10px;
     flex-wrap: wrap;
     user-select: none;
 }
 
 .tab {
     display: inline-block;
-    padding: 7px 18px;
-    font-size: 13px;
-    border-radius: 18px;
+    padding: 11px 26px;
+    font-size: 16px;
+    border-radius: 24px;
     background: var(--card);
     border-color: var(--line);
     border-width: 1px;
@@ -153,20 +159,21 @@ input_select {
 }
 
 .cards {
-    gap: 12px;
-    row-gap: 12px;
+    gap: 18px;
+    row-gap: 18px;
     flex-wrap: wrap;
 }
 
 .card {
-    width: 250px;
+    width: 360px;
+    min-height: 150px;
     min-width: 0;
-    padding: 14px;
-    gap: 4px;
+    padding: 22px 24px;
+    gap: 10px;
     background: var(--card);
     border-color: var(--line);
     border-width: 1px;
-    border-radius: 10px;
+    border-radius: 14px;
     cursor: pointer;
     user-select: none;
 
@@ -178,12 +185,12 @@ input_select {
 
 .card-title {
     font-weight: bold;
-    font-size: 14px;
+    font-size: 20px;
 }
 
 .card-text {
     color: var(--muted);
-    font-size: 12px;
+    font-size: 15px;
 }
 
 #workspace {

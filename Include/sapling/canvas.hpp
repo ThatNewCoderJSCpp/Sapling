@@ -54,6 +54,7 @@ public:
     void axes(Color c);
 
     const std::vector<std::uint8_t>& pixels() const { return m_px; }
+    bool restore(const std::vector<std::uint8_t>& rgba);
     std::vector<std::uint8_t> take_pixels();
 
 private:

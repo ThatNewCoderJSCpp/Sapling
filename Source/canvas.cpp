@@ -89,8 +89,41 @@ void Canvas::blend(int x, int y, Color c, double coverage) {
     p[3] = 255;
 }
 
+namespace {
+
+bool span_of(double coef, double base, double lo, double hi, double& from, double& to) {
+    if (std::fabs(coef) < 1e-12) {
+        if (base < lo || base > hi) return false;
+        from = -1e300;
+        to = 1e300;
+        return true;
+    }
+    double p = (lo - base) / coef;
+    double q = (hi - base) / coef;
+    if (p > q) std::swap(p, q);
+    from = p;
+    to = q;
+    return true;
+}
+
+void widen(bool& any, double& lo, double& hi, double from, double to) {
+    if (from > to) return;
+    if (!any) {
+        lo = from;
+        hi = to;
+        any = true;
+        return;
+    }
+    lo = std::min(lo, from);
+    hi = std::max(hi, to);
+}
+
+} // namespace
+
 void Canvas::capsule(Vec2 a, Vec2 b, double r, Color c) {
     if (!std::isfinite(a.x) || !std::isfinite(a.y) || !std::isfinite(b.x) || !std::isfinite(b.y)) return;
+    const double reach = r + 0.5;
+    if (!(reach > 0.0)) return;
     const int x0 = std::max(0, static_cast<int>(std::floor(std::min(a.x, b.x) - r - 1.0)));
     const int x1 = std::min(m_w - 1, static_cast<int>(std::ceil(std::max(a.x, b.x) + r + 1.0)));
     const int y0 = std::max(0, static_cast<int>(std::floor(std::min(a.y, b.y) - r - 1.0)));
@@ -98,13 +131,40 @@ void Canvas::capsule(Vec2 a, Vec2 b, double r, Color c) {
     if (x0 > x1 || y0 > y1) return;
     const Vec2 d = b - a;
     const double dd = d.x * d.x + d.y * d.y;
+    const double len = std::sqrt(dd);
+    const Vec2 u = len > 0.0 ? d * (1.0 / len) : Vec2{ 1.0, 0.0 };
+    const Vec2 n{ -u.y, u.x };
+    const double rr = reach * reach;
     for (int y = y0; y <= y1; ++y) {
-        for (int x = x0; x <= x1; ++x) {
-            const Vec2 p{ x + 0.5, y + 0.5 };
-            double t = dd > 0.0 ? ((p.x - a.x) * d.x + (p.y - a.y) * d.y) / dd : 0.0;
+        const double py = y + 0.5;
+        bool any = false;
+        double lo = 0.0, hi = 0.0;
+        const double da = py - a.y;
+        if (std::fabs(da) < reach) {
+            const double half = std::sqrt(rr - da * da);
+            widen(any, lo, hi, a.x - half, a.x + half);
+        }
+        const double db = py - b.y;
+        if (std::fabs(db) < reach) {
+            const double half = std::sqrt(rr - db * db);
+            widen(any, lo, hi, b.x - half, b.x + half);
+        }
+        if (len > 0.0) {
+            double s0, s1, t0, t1;
+            if (span_of(n.x, n.y * da - n.x * a.x, -reach, reach, s0, s1) && span_of(u.x, u.y * da - u.x * a.x, 0.0, len, t0, t1)) {
+                widen(any, lo, hi, std::max(s0, t0), std::min(s1, t1));
+            }
+        }
+        if (!any) continue;
+        const int xa = std::max(x0, static_cast<int>(std::floor(lo - 0.5)));
+        const int xb = std::min(x1, static_cast<int>(std::ceil(hi - 0.5)));
+        for (int x = xa; x <= xb; ++x) {
+            const double px = x + 0.5;
+            double t = dd > 0.0 ? ((px - a.x) * d.x + da * d.y) / dd : 0.0;
             t = std::min(1.0, std::max(0.0, t));
-            const double dist = length(p - (a + d * t));
-            const double cov = r + 0.5 - dist;
+            const double ex = px - (a.x + d.x * t);
+            const double ey = py - (a.y + d.y * t);
+            const double cov = reach - std::sqrt(ex * ex + ey * ey);
             if (cov > 0.0) blend(x, y, c, cov);
         }
     }
@@ -187,6 +247,12 @@ void Canvas::axes(Color c) {
     visible(x0, x1, y0, y1);
     line(Vec2{ x0, 0.0 }, Vec2{ x1, 0.0 }, c, 1.4);
     line(Vec2{ 0.0, y0 }, Vec2{ 0.0, y1 }, c, 1.4);
+}
+
+bool Canvas::restore(const std::vector<std::uint8_t>& rgba) {
+    if (rgba.size() != m_px.size()) return false;
+    std::copy(rgba.begin(), rgba.end(), m_px.begin());
+    return true;
 }
 
 std::vector<std::uint8_t> Canvas::take_pixels() {
