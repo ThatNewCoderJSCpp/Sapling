@@ -87,7 +87,7 @@ jobs:
           app=$(echo smoke/Sapling-*)
           env -i PATH=/usr/bin:/bin HOME=$PWD/smoke/home $app/sapling --version
           env -i PATH=/usr/bin:/bin HOME=$PWD/smoke/home $app/sapling --check | tee check.txt
-          grep "built-in window ok, 1 compiled script" check.txt
+          grep "built-in window ok, 2 compiled script" check.txt
           mkdir -p smoke/data
           env -i PATH=/usr/bin:/bin HOME=$PWD/smoke/home SAPLING_DATA_DIR=$PWD/smoke/data \
             timeout 20 xvfb-run -a $app/sapling > smoke/run.log 2>&1 || status=$?
@@ -292,7 +292,7 @@ jobs:
           $p = Start-Process -FilePath "$app\sapling.exe" -ArgumentList "--check" -Wait -PassThru -NoNewWindow -RedirectStandardOutput check.txt -RedirectStandardError check-err.txt
           Get-Content check.txt, check-err.txt
           if ($p.ExitCode -ne 0) { exit 1 }
-          if (-not (Select-String -Path check.txt -Pattern "built-in window ok, 1 compiled script" -Quiet)) { Write-Output "::error::sapling --check didn't find its built-in window and script"; exit 1 }
+          if (-not (Select-String -Path check.txt -Pattern "built-in window ok, 2 compiled script" -Quiet)) { Write-Output "::error::sapling --check didn't find its built-in window and both scripts"; exit 1 }
 
       - uses: actions/upload-artifact@v4
         with:
@@ -370,7 +370,7 @@ jobs:
           app=$(echo smoke/Sapling-*)
           $app/sapling --version
           $app/sapling --check | tee check.txt
-          grep "built-in window ok, 1 compiled script" check.txt
+          grep "built-in window ok, 2 compiled script" check.txt
 
       - name: Check the package doesn't need Homebrew
         run: |

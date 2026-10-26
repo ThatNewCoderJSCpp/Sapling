@@ -43,7 +43,7 @@ jobs:
         run: |
           build/bin/sapling --version
           build/bin/sapling --check | tee check.txt
-          grep "built-in window ok, 1 compiled script" check.txt
+          grep "built-in window ok, 2 compiled script" check.txt
           mkdir -p smoke
           SAPLING_DATA_DIR=$PWD/smoke timeout 20 xvfb-run -a build/bin/sapling > smoke/run.log 2>&1 || status=$?
           cat smoke/run.log
