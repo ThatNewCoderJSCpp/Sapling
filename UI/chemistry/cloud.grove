@@ -1,0 +1,55 @@
+<!grove>
+<grove>
+    <head>
+        <title>Electron clouds</title>
+    </head>
+    <body>
+        <row class="chem-workspace">
+            <column class="chem-side scroll">
+                <h3 class="side-title">Element</h3>
+                <input_element id="cl-element" value="C" />
+                <row class="line">
+                    <text class="muted">Ion charge</text>
+                    <input_integer id="cl-charge" class="small" value="0" min="-3" max="8" />
+                </row>
+                <row class="line">
+                    <text class="muted">Orbital</text>
+                    <input_select id="cl-orbital" class="grow"><option value="">&#8212;</option></input_select>
+                </row>
+                <row class="seg">
+                    <button id="cl-2d" class="segbtn">2D slice</button>
+                    <button id="cl-3d" class="segbtn on">3D cloud</button>
+                </row>
+                <row class="line">
+                    <text class="muted">Slice plane</text>
+                    <input_select id="cl-plane" class="grow" value="xz">
+                        <option value="xz">xz</option>
+                        <option value="xy">xy</option>
+                        <option value="yz">yz</option>
+                    </input_select>
+                </row>
+                <row class="line">
+                    <text class="muted">Points</text>
+                    <input_slider id="cl-points" class="grow" min="1000" max="40000" step="1000" value="9000" />
+                </row>
+                <row class="line">
+                    <text class="muted">Model</text>
+                    <input_select id="cl-model" class="grow" value="hydrogenic">
+                        <option value="hydrogenic">Hydrogen-like + Slater Zeff</option>
+                        <option value="slater">Slater-type orbitals</option>
+                    </input_select>
+                </row>
+                <column class="checks">
+                    <input_bool id="cl-signed" checked>Color by the sign of &#968;</input_bool>
+                    <input_bool id="cl-spin" checked>Spin</input_bool>
+                </column>
+            </column>
+            <column class="chem-stage">
+                <canvas id="chem-cloud-view" />
+            </column>
+            <column class="chem-info scroll">
+                <column id="cl-readouts" class="panel"></column>
+            </column>
+        </row>
+    </body>
+</grove>

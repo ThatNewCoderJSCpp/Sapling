@@ -2,6 +2,7 @@
 #define SAPLING_CANVAS_HPP
 
 #include <cstdint>
+#include <string>
 #include <vector>
 
 namespace sapling {
@@ -25,6 +26,12 @@ Vec2 operator+(Vec2 a, Vec2 b);
 Vec2 operator-(Vec2 a, Vec2 b);
 Vec2 operator*(Vec2 a, double s);
 double length(Vec2 a);
+
+enum class TextAlign {
+    Left,
+    Center,
+    Right
+};
 
 class Canvas {
 public:
@@ -52,6 +59,20 @@ public:
     void arrow(Vec2 from, Vec2 to, Color c, double width_px = 2.0);
     void grid(double step, Color c);
     void axes(Color c);
+
+    void line_px(Vec2 a, Vec2 b, Color c, double width_px = 1.5);
+    void dashed_line_px(Vec2 a, Vec2 b, Color c, double width_px = 1.5, double dash_px = 6.0);
+    void disc_px(Vec2 center, double radius_px, Color c);
+    void circle_px(Vec2 center, double radius_px, Color c, double width_px = 1.5);
+    void arrow_px(Vec2 from, Vec2 to, Color c, double width_px = 2.0, double head_px = -1.0);
+    void fill_rect_px(double x, double y, double w, double h, Color c);
+    void stroke_rect_px(double x, double y, double w, double h, Color c, double width_px = 1.0);
+    void fill_polygon(const std::vector<Vec2>& screen_points, Color c);
+    void fill_triangle(Vec2 a, Vec2 b, Vec2 c, Color color);
+    void sphere_px(Vec2 center, double radius_px, Color c, double light = 1.0);
+    void put_pixel(int x, int y, Color c);
+    void text(Vec2 screen, const std::string& s, double size_px, Color c, TextAlign align = TextAlign::Left, double weight = 1.0);
+    double text_width(const std::string& s, double size_px) const;
 
     const std::vector<std::uint8_t>& pixels() const { return m_px; }
     bool restore(const std::vector<std::uint8_t>& rgba);

@@ -1,0 +1,287 @@
+.appbar {
+    padding: 8px 18px;
+    gap: 8px;
+    align-items: center;
+    background: var(--panel);
+    border-color: var(--line);
+    border-width: 0 0 1px 0;
+    user-select: none;
+}
+
+.section {
+    background: var(--bg);
+    border-color: var(--bg);
+    font-size: 14px;
+    padding: 5px 14px;
+
+    &:hover {
+        background: var(--hover);
+    }
+}
+
+.section:current {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--bg);
+    font-weight: bold;
+}
+
+.subtabs {
+    padding: 6px 12px;
+    gap: 4px;
+    row-gap: 4px;
+    flex-wrap: wrap;
+    background: var(--panel);
+    border-color: var(--line);
+    border-width: 0 0 1px 0;
+    user-select: none;
+}
+
+.subtab {
+    background: var(--panel);
+    border-color: var(--panel);
+    padding: 4px 10px;
+
+    &:hover {
+        background: var(--hover);
+    }
+}
+
+.subtab:current {
+    background: var(--card);
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.chem-workspace {
+    flex: 1;
+    gap: 0;
+}
+
+.chem-side {
+    width: 27%;
+    min-width: 280px;
+    max-width: 400px;
+    padding: 10px 12px;
+    gap: 6px;
+    background: var(--panel);
+    border-color: var(--line);
+    border-width: 0 1px 0 0;
+}
+
+.chem-info {
+    width: 26%;
+    min-width: 260px;
+    max-width: 420px;
+    padding: 10px 12px;
+    gap: 6px;
+    background: var(--panel);
+    border-color: var(--line);
+    border-width: 0 0 0 1px;
+}
+
+.chem-col {
+    flex: 1;
+    padding: 12px 16px;
+    gap: 7px;
+    border-color: var(--line);
+    border-width: 0 1px 0 0;
+}
+
+.units-page {
+    max-width: 620px;
+}
+
+.chem-stage {
+    flex: 1;
+    gap: 0;
+    min-width: 300px;
+}
+
+.chem-stage canvas {
+    flex: 1;
+}
+
+.element-canvas {
+    height: 300px;
+}
+
+.stagebar {
+    padding: 6px 10px;
+    gap: 8px;
+    align-items: center;
+    background: var(--card);
+}
+
+.stage-title {
+    font-size: 15px;
+    font-weight: bold;
+}
+
+.group {
+    gap: 6px;
+}
+
+.line {
+    gap: 6px;
+    align-items: center;
+}
+
+.wrap {
+    flex-wrap: wrap;
+    row-gap: 6px;
+}
+
+.seg {
+    gap: 0;
+    flex-wrap: wrap;
+}
+
+.segbtn {
+    border-radius: 0;
+    padding: 4px 10px;
+    background: var(--card);
+
+    &:hover {
+        background: var(--hover);
+    }
+}
+
+.segbtn.on {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--bg);
+    font-weight: bold;
+}
+
+.small {
+    width: 70px;
+}
+
+.small-btn {
+    min-width: 0;
+    padding: 4px 10px;
+}
+
+.label-w {
+    width: 16px;
+    color: var(--muted);
+}
+
+.checks {
+    gap: 3px;
+}
+
+.hint {
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.formula {
+    font-size: 16px;
+    color: var(--accent);
+}
+
+.result {
+    font-size: 15px;
+    color: var(--accent);
+    font-weight: bold;
+}
+
+.arrow-select {
+    width: 56px;
+}
+
+.panel {
+    gap: 3px;
+}
+
+.panel-head {
+    margin: 8px 0 2px 0;
+    font-size: 14px;
+    font-weight: bold;
+    color: var(--accent);
+}
+
+.panel-row {
+    gap: 8px;
+}
+
+.panel-label {
+    color: var(--muted);
+    width: 42%;
+}
+
+.panel-value {
+    flex: 1;
+}
+
+.panel-note {
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.panel-warn {
+    color: #f9e2af;
+    font-size: 12px;
+}
+
+.ion-list {
+    gap: 1px;
+}
+
+.ion-row {
+    background: var(--panel);
+    border-color: var(--panel);
+    border-radius: 4px;
+    padding: 3px 6px;
+    align-items: center;
+    gap: 8px;
+
+    &:hover {
+        background: var(--hover);
+    }
+}
+
+.ion-formula {
+    width: 34%;
+    color: var(--accent);
+}
+
+.ion-name {
+    flex: 1;
+}
+
+.unit-select,
+.cv-unit {
+    min-width: 64px;
+}
+
+.var-row {
+    gap: 6px;
+    align-items: center;
+}
+
+.var-label {
+    width: 40%;
+}
+
+.species-row {
+    gap: 6px;
+    align-items: center;
+}
+
+.species-name {
+    width: 26%;
+    color: var(--accent);
+}
+
+.panel-line {
+    gap: 0;
+}
+
+.panel-line .panel-head,
+.panel-line .panel-note,
+.panel-line .panel-warn {
+    flex: 1;
+}

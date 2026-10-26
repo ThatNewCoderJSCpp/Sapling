@@ -1,4 +1,5 @@
 #include "sapling/canvas.hpp"
+#include "sapling/chemistry.hpp"
 #include "sapling/simulation.hpp"
 
 #include <grove/canvas.hpp>
@@ -22,6 +23,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <iostream>
+#include <map>
 #include <memory>
 #include <optional>
 #include <string>
@@ -64,6 +66,18 @@ std::vector<std::string> split(const std::string& s, char sep) {
         }
     }
     out.push_back(cur);
+    return out;
+}
+
+std::string panel_lines(const std::string& text) {
+    std::string out;
+    for (const std::string& line : split(text, '\n')) {
+        if (line.empty()) continue;
+        if (line[0] == '#') out += "h\t" + line.substr(1) + "\n";
+        else if (line[0] == '!') out += "w\t" + line.substr(1) + "\n";
+        else if (line.find('\t') != std::string::npos) out += "r\t" + line + "\n";
+        else out += "n\t" + line + "\n";
+    }
     return out;
 }
 
@@ -116,46 +130,121 @@ public:
             grove::canvas_of(m_doc, *m_canvas);
             m_doc.events().add_listener(m_canvas, "canvas_resize", [this](grove::Event&) { m_dirty = true; });
         }
+        install_chemistry();
         m_last = std::chrono::steady_clock::now();
         m_doc.events().set_interval(16.0, [this] { tick(); });
     }
 
 private:
+    struct ChemCanvas {
+        std::string name;
+        grove::Node* node = nullptr;
+        std::unique_ptr<ChemView> view;
+        Canvas image;
+        bool dirty = true;
+    };
+
+    void add_chem_view(const std::string& name, const std::string& id, std::unique_ptr<ChemView> view) {
+        auto c = std::make_unique<ChemCanvas>();
+        c->name = name;
+        c->view = std::move(view);
+        c->node = m_doc.find_by_id(id);
+        m_chem_views[name] = std::move(c);
+    }
+
+    ChemCanvas* chem_at(double x, double y) {
+        for (auto& kv : m_chem_views) {
+            ChemCanvas& c = *kv.second;
+            if (!c.node) continue;
+            const grove::CanvasRect r = grove::canvas_rect(m_doc, *c.node);
+            if (r.shown && x >= r.x && y >= r.y && x < r.x + r.width && y < r.y + r.height) return &c;
+        }
+        return nullptr;
+    }
+
+    Vec2 local(const ChemCanvas& c, double x, double y) const {
+        const grove::CanvasRect r = grove::canvas_rect(m_doc, *c.node);
+        unsigned w = 0, h = 0;
+        grove::canvas_size(m_doc, *c.node, w, h);
+        const double sx = r.width > 0.0 && w > 0 ? w / r.width : 1.0;
+        const double sy = r.height > 0.0 && h > 0 ? h / r.height : 1.0;
+        return Vec2{ (x - r.x) * sx, (y - r.y) * sy };
+    }
+
+    void install_chemistry() {
+        add_chem_view("bond", "chem-bond-view", make_bonding_view(m_chem));
+        add_chem_view("structure", "chem-ion-view", make_structure_view(m_chem));
+        add_chem_view("phase", "chem-phase-view", make_phase_view(m_chem));
+        add_chem_view("orbital", "chem-orbital-view", make_orbital_view(m_chem));
+        add_chem_view("cloud", "chem-cloud-view", make_cloud_view(m_chem));
+        add_chem_view("element", "chem-element-view", make_element_view(m_chem));
+        for (auto& kv : m_chem_views) {
+            ChemCanvas* c = kv.second.get();
+            if (!c->node) continue;
+            grove::canvas_of(m_doc, *c->node);
+            m_doc.events().add_listener(c->node, "canvas_resize", [c](grove::Event&) { c->dirty = true; });
+            m_doc.events().add_listener(c->node, "mouse_down", [this, c](grove::Event& e) {
+                m_chem_drag = c;
+                if (c->view->mouse_down(local(*c, e.x, e.y), e.button, e.modifiers)) c->dirty = true;
+            });
+            m_doc.events().add_listener(c->node, "wheel", [this, c](grove::Event& e) {
+                if (c->view->wheel(local(*c, e.x, e.y), e.delta_y)) {
+                    c->dirty = true;
+                    e.default_prevented = true;
+                }
+            });
+            m_doc.events().add_listener(c->node, "double_click", [this, c](grove::Event& e) {
+                if (c->view->double_click(local(*c, e.x, e.y))) c->dirty = true;
+            });
+            m_doc.events().add_listener(c->node, "key_down", [c](grove::Event& e) {
+                if (c->view->key(e.key, e.modifiers)) {
+                    c->dirty = true;
+                    e.default_prevented = true;
+                }
+            });
+        }
+        m_doc.events().add_listener(&m_doc.root(), "mouse_move", [this](grove::Event& e) {
+            ChemCanvas* c = m_chem_drag ? m_chem_drag : chem_at(e.x, e.y);
+            if (c != m_chem_hover && m_chem_hover && !m_chem_drag) {
+                if (m_chem_hover->view->mouse_move(Vec2{ -1e6, -1e6 }, false)) m_chem_hover->dirty = true;
+            }
+            m_chem_hover = c;
+            if (c && c->view->mouse_move(local(*c, e.x, e.y), m_chem_drag != nullptr)) c->dirty = true;
+        });
+        m_doc.events().add_listener(&m_doc.root(), "mouse_up", [this](grove::Event& e) {
+            ChemCanvas* c = m_chem_drag;
+            m_chem_drag = nullptr;
+            if (c && c->view->mouse_up(local(*c, e.x, e.y), e.button)) c->dirty = true;
+        });
+    }
+
+    void chem_dirty_all() {
+        for (auto& kv : m_chem_views) kv.second->dirty = true;
+    }
+
+    void tick_chemistry(double dt) {
+        for (auto& kv : m_chem_views) {
+            ChemCanvas& c = *kv.second;
+            if (!c.node) continue;
+            const grove::CanvasRect r = grove::canvas_rect(m_doc, *c.node);
+            if (!r.shown) continue;
+            if (c.view->step(dt)) c.dirty = true;
+            if (!c.dirty) continue;
+            unsigned w = 0, h = 0;
+            if (!grove::canvas_size(m_doc, *c.node, w, h) || w == 0 || h == 0) continue;
+            c.dirty = false;
+            if (static_cast<int>(w) != c.image.width() || static_cast<int>(h) != c.image.height()) c.image.resize(static_cast<int>(w), static_cast<int>(h));
+            c.view->draw(c.image, m_theme);
+            grove::set_canvas_pixels(m_doc, *c.node, w, h, c.image.take_pixels());
+        }
+    }
+
     void native(const std::string& name, std::function<std::string(const std::vector<std::string>&)> fn) {
         grove::register_native(m_doc, "sapling." + name, std::move(fn));
     }
 
     void register_natives() {
         native("version", [](const std::vector<std::string>&) { return std::string(SAPLING_VERSION_STRING); });
-        native("sections", [](const std::vector<std::string>&) {
-            std::string out;
-            for (const Section& s : sections()) out += s.id + "\t" + clean(s.title) + "\t" + clean(s.description) + "\n";
-            return out;
-        });
-        native("simulations", [](const std::vector<std::string>& a) {
-            std::string out;
-            for (const SimulationInfo& s : simulations()) {
-                if (!arg(a, 0).empty() && s.section != arg(a, 0)) continue;
-                out += s.id + "\t" + clean(s.title) + "\t" + clean(s.description) + "\n";
-            }
-            return out;
-        });
-        native("open", [this](const std::vector<std::string>& a) {
-            const SimulationInfo* info = find_simulation(arg(a, 0));
-            if (!info) return std::string();
-            m_sim = make_simulation(info->id);
-            if (!m_sim) return std::string();
-            m_info = info;
-            m_playing = true;
-            m_speed = 1.0;
-            m_dirty = true;
-            return clean(info->title) + "\t" + clean(info->description) + "\t" + clean(m_sim->note());
-        });
-        native("close", [this](const std::vector<std::string>&) {
-            m_sim.reset();
-            m_info = nullptr;
-            return std::string("ok");
-        });
         native("params", [this](const std::vector<std::string>&) {
             std::string out;
             if (!m_sim) return out;
@@ -196,6 +285,49 @@ private:
             m_dirty = true;
             return std::string("ok");
         });
+        native("chem.cmd", [this](const std::vector<std::string>& args) {
+            const auto f = fields_of(args);
+            const auto it = m_chem_views.find(arg(f, 0));
+            if (it == m_chem_views.end()) return std::string("error\tno chemistry view called ") + arg(f, 0);
+            const std::vector<std::string> rest(f.begin() + 1, f.end());
+            std::string out;
+            try {
+                out = it->second->view->command(rest);
+            } catch (const std::exception& e) {
+                out = std::string("error\t") + e.what();
+            }
+            const std::string c = arg(rest, 0);
+            if (c != "readouts" && c != "selection" && c != "version" && c != "state" && c != "props" && c != "saved") it->second->dirty = true;
+            return out;
+        });
+        native("chem.panel", [this](const std::vector<std::string>& args) {
+            const auto f = fields_of(args);
+            const auto it = m_chem_views.find(arg(f, 0));
+            if (it == m_chem_views.end()) return std::string("w\tno chemistry view called ") + arg(f, 0) + "\n";
+            try {
+                return panel_lines(it->second->view->command(std::vector<std::string>(f.begin() + 1, f.end())));
+            } catch (const std::exception& e) {
+                return std::string("w\t") + e.what() + "\n";
+            }
+        });
+        native("chem.toolpanel", [this](const std::vector<std::string>& args) {
+            try {
+                return panel_lines(chemistry_tool(m_chem, fields_of(args)));
+            } catch (const std::exception& e) {
+                return std::string("w\t") + e.what() + "\n";
+            }
+        });
+        native("chem.tool", [this](const std::vector<std::string>& args) {
+            const auto f = fields_of(args);
+            std::string out;
+            try {
+                out = chemistry_tool(m_chem, f);
+            } catch (const std::exception& e) {
+                out = std::string("error\t") + e.what();
+            }
+            if (arg(f, 0) == "units") chem_dirty_all();
+            return out;
+        });
         native("readouts", [this](const std::vector<std::string>&) {
             std::string out;
             if (!m_sim) return out;
@@ -208,9 +340,10 @@ private:
         const auto now = std::chrono::steady_clock::now();
         double dt = std::chrono::duration<double>(now - m_last).count();
         m_last = now;
-        if (!m_sim || !m_canvas) return;
         dt = std::min(dt, 0.1);
-        if (m_playing) {
+        tick_chemistry(dt);
+        if (!m_canvas) return;
+        if (m_sim && m_playing) {
             m_sim->step(dt * m_speed * m_sim->suggested_speed());
             m_dirty = true;
         }
@@ -222,14 +355,28 @@ private:
         if (!grove::canvas_size(m_doc, *m_canvas, w, h) || w == 0 || h == 0) return;
         m_dirty = false;
         if (static_cast<int>(w) != m_image.width() || static_cast<int>(h) != m_image.height()) m_image.resize(static_cast<int>(w), static_cast<int>(h));
-        m_sim->draw(m_image, m_theme);
+        if (m_sim) {
+            m_sim->draw(m_image, m_theme);
+        } else {
+            draw_empty();
+        }
         grove::set_canvas_pixels(m_doc, *m_canvas, w, h, m_image.take_pixels());
+    }
+
+    void draw_empty() {
+        m_image.clear(m_theme.background);
+        m_image.set_view(0.0, 0.0, 60.0);
+        m_image.grid(1.0, m_theme.grid);
+        m_image.axes(m_theme.axes);
     }
 
     grove::Document& m_doc;
     grove::Node* m_canvas = nullptr;
+    ChemShared m_chem;
+    std::map<std::string, std::unique_ptr<ChemCanvas>> m_chem_views;
+    ChemCanvas* m_chem_drag = nullptr;
+    ChemCanvas* m_chem_hover = nullptr;
     std::unique_ptr<Simulation> m_sim;
-    const SimulationInfo* m_info = nullptr;
     Canvas m_image;
     Theme m_theme;
     bool m_playing = true;

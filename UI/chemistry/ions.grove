@@ -1,0 +1,52 @@
+<!grove>
+<grove>
+    <head>
+        <title>Ions and names</title>
+    </head>
+    <body>
+        <row class="chem-workspace">
+            <column class="chem-side scroll">
+                <h3 class="side-title">Polyatomic ions</h3>
+                <row class="line">
+                    <input_string id="ions-search" class="grow" placeholder="Search: sulfate, NH4, chromium..." />
+                </row>
+                <row class="line">
+                    <input_select id="ions-category" class="grow" value="all">
+                        <option value="all">All groups</option>
+                    </input_select>
+                </row>
+                <text id="ions-count" class="hint"></text>
+                <column id="ions-list" class="ion-list"></column>
+            </column>
+            <column class="chem-stage">
+                <row class="stagebar">
+                    <text id="ions-title" class="stage-title">carbonate</text>
+                    <div class="grow"></div>
+                    <button id="ions-2d" class="segbtn">2D</button>
+                    <button id="ions-3d" class="segbtn on">3D</button>
+                    <input_bool id="ions-spin" checked>Spin</input_bool>
+                    <button id="ions-sandbox" class="primary small-btn" title="Open this structure in the bonding sandbox">Open in sandbox</button>
+                </row>
+                <canvas id="chem-ion-view" />
+            </column>
+            <column class="chem-info scroll">
+                <column id="ions-info" class="panel"></column>
+                <column id="ions-structure" class="panel"></column>
+                <h3 class="side-title">Name it</h3>
+                <text class="hint">A formula gives its name; a name gives its formula. Ionic compounds, acids, hydrates, binary molecules, common organics and carbohydrates all work.</text>
+                <row class="line">
+                    <input_string id="name-input" class="grow" placeholder="CuSO4&#183;5H2O, H2SO3, iron(II) nitrate" />
+                    <button id="name-go" class="primary small-btn">Name</button>
+                </row>
+                <column id="name-out" class="panel"></column>
+                <h3 class="side-title">Combine two ions</h3>
+                <row class="line">
+                    <input_string id="combine-cation" class="grow" placeholder="cation: Al3+, ammonium" />
+                    <input_string id="combine-anion" class="grow" placeholder="anion: SO4 2-, phosphate" />
+                    <button id="combine-go" class="primary small-btn">Combine</button>
+                </row>
+                <column id="combine-out" class="panel"></column>
+            </column>
+        </row>
+    </body>
+</grove>

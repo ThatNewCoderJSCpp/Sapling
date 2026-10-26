@@ -1,0 +1,154 @@
+<!grove>
+<grove>
+    <head>
+        <title>Bonding sandbox</title>
+    </head>
+    <body>
+        <row class="chem-workspace">
+            <column class="chem-side scroll">
+                <h3 class="side-title">Kind of bonding</h3>
+                <row class="seg">
+                    <button id="bond-mode-covalent" class="segbtn on">Covalent</button>
+                    <button id="bond-mode-ionic" class="segbtn">Ionic</button>
+                    <button id="bond-mode-metallic" class="segbtn">Metallic</button>
+                </row>
+                <row class="seg">
+                    <button id="bond-view-2d" class="segbtn on">2D</button>
+                    <button id="bond-view-3d" class="segbtn">3D</button>
+                </row>
+
+                <column id="cov-controls" class="group">
+                    <h3 class="side-title">Tool</h3>
+                    <row class="seg wrap">
+                        <button id="tool-atom" class="segbtn on" title="Click to place atoms; drag from an atom to grow a bond">Atom</button>
+                        <button id="tool-bond" class="segbtn" title="Drag between atoms; click a bond to cycle single/double/triple">Bond</button>
+                        <button id="tool-move" class="segbtn" title="Drag atoms; drag empty space to rotate or pan">Move</button>
+                        <button id="tool-erase" class="segbtn" title="Click an atom or bond to delete it">Erase</button>
+                        <button id="tool-inspect" class="segbtn" title="Click a bond or atom to see its details">Inspect</button>
+                    </row>
+                    <h3 class="side-title">Element (nonmetals, metalloids, Al)</h3>
+                    <input_element id="cov-element" only-classes="nonmetal metalloid" also="Al Be" value="C" />
+                    <row class="line">
+                        <text class="muted">Overall charge</text>
+                        <input_integer id="cov-charge" class="small" value="0" min="-4" max="4" />
+                        <div class="grow"></div>
+                        <button id="cov-fill" class="ghost" title="Add the hydrogens each atom needs">Fill H</button>
+                        <button id="cov-tidy" class="ghost" title="Straighten the drawing (VSEPR shape in 3D)">Tidy</button>
+                    </row>
+                    <row class="line wrap">
+                        <button id="cov-fix" class="ghost" title="Pick the bond orders with the smallest formal charges">Fix Lewis</button>
+                        <button id="cov-undo" class="ghost">Undo</button>
+                        <button id="cov-redo" class="ghost">Redo</button>
+                        <button id="cov-frame" class="ghost">Recenter</button>
+                        <button id="cov-clear" class="ghost">Clear</button>
+                    </row>
+                    <row class="line">
+                        <text class="muted">Resonance</text>
+                        <input_select id="cov-resonance" class="grow" placeholder="none"><option value="">&#8212;</option></input_select>
+                        <button id="cov-resonance-show" class="ghost">Show</button>
+                    </row>
+                    <h3 class="side-title">Start from an ion or molecule</h3>
+                    <row class="line">
+                        <input_select id="cov-template-list" class="grow" placeholder="Pick a polyatomic ion or compound"><option value="">&#8212;</option></input_select>
+                    </row>
+                    <row class="line">
+                        <input_string id="cov-template" class="grow" placeholder="or type a name, formula or SMILES" />
+                        <button id="cov-template-load" class="primary small-btn">Load</button>
+                    </row>
+                    <h3 class="side-title">Show</h3>
+                    <column class="checks">
+                        <input_bool id="opt-lone_pairs" checked>Lone pairs</input_bool>
+                        <input_bool id="opt-formal_charges" checked>Formal charges</input_bool>
+                        <input_bool id="opt-partial_charges">Partial charges (&#948;+ / &#948;&#8722;)</input_bool>
+                        <input_bool id="opt-bond_dipoles">Bond dipoles</input_bool>
+                        <input_bool id="opt-molecular_dipole">Molecular dipole</input_bool>
+                        <input_bool id="opt-labels" checked>Atom labels (3D)</input_bool>
+                        <input_bool id="opt-snap" checked>Snap new bonds to their real length</input_bool>
+                    </column>
+                </column>
+
+                <column id="ion-controls" class="group hidden">
+                    <h3 class="side-title">Metal (cation)</h3>
+                    <input_element id="ion-metal" only-classes="metal metalloid" value="Na" />
+                    <h3 class="side-title">Nonmetal (anion)</h3>
+                    <input_element id="ion-nonmetal" only-classes="nonmetal metalloid" disable-groups="18" disable="H" value="Cl" />
+                    <text class="muted">Or type the ions (polyatomic ions and charges work too)</text>
+                    <row class="line">
+                        <input_string id="ion-cation" class="grow" placeholder="Fe3+, NH4+, Hg2 2+" />
+                        <input_string id="ion-anion" class="grow" placeholder="SO4 2-, nitrate" />
+                        <button id="ion-build" class="primary small-btn">Build</button>
+                    </row>
+                </column>
+
+                <column id="metal-controls" class="group hidden">
+                    <h3 class="side-title">Metals (pick up to 4)</h3>
+                    <input_element id="metal-elements" only-classes="metal metalloid" multiple max-selected="4" value="Cu Zn" />
+                    <text class="muted">Atom percent of each</text>
+                    <column id="metal-fractions" class="params"></column>
+                    <row class="line wrap">
+                        <button id="metal-preset-brass" class="ghost">Brass</button>
+                        <button id="metal-preset-bronze" class="ghost">Bronze</button>
+                        <button id="metal-preset-steel" class="ghost">Steel</button>
+                        <button id="metal-preset-solder" class="ghost">Solder</button>
+                        <button id="metal-preset-gold" class="ghost">18k gold</button>
+                    </row>
+                </column>
+
+                <column id="lattice-controls" class="group hidden">
+                    <h3 class="side-title">Lattice</h3>
+                    <row class="line">
+                        <text class="muted">Size (cells)</text>
+                        <input_slider id="lat-cells" class="grow" min="1" max="5" step="1" value="2" />
+                        <button id="lat-assemble" class="ghost" title="Scatter the atoms and watch them come together">Assemble</button>
+                    </row>
+                    <column class="checks">
+                        <input_bool id="opt-space_fill">Space-filling spheres</input_bool>
+                        <input_bool id="opt-neighbors" checked>Neighbor sticks</input_bool>
+                        <input_bool id="opt-unit_cell" checked>Unit cell</input_bool>
+                        <input_bool id="opt-thermal" checked>Thermal vibration</input_bool>
+                        <input_bool id="opt-electron_sea" checked>Electron sea (metals)</input_bool>
+                        <input_bool id="opt-field">Electric field (metals)</input_bool>
+                    </column>
+                </column>
+
+                <column class="group">
+                    <input_bool id="opt-spin">Spin the 3D view</input_bool>
+                    <h3 class="side-title">Temperature and pressure</h3>
+                    <row class="line">
+                        <text class="label-w">T</text>
+                        <input_float id="bond-t" class="grow" value="298.15" />
+                        <input_select id="bond-t-unit" class="unit-select" dimension="temperature" value="K"><option>K</option></input_select>
+                    </row>
+                    <input_slider id="bond-t-slider" min="1" max="6000" step="1" value="298" />
+                    <row class="line">
+                        <text class="label-w">P</text>
+                        <input_float id="bond-p" class="grow" value="1" />
+                        <input_select id="bond-p-unit" class="unit-select" dimension="pressure" value="atm"><option>atm</option></input_select>
+                    </row>
+                    <text class="hint">Hotter or lower pressure breaks more bonds (&#916;G = &#916;H &#8722; T&#916;S); lattices melt and boil past their melting and boiling points.</text>
+                </column>
+
+                <column class="group">
+                    <h3 class="side-title">Save</h3>
+                    <row class="line">
+                        <input_string id="bond-save-name" class="grow" placeholder="Name" />
+                        <button id="bond-save" class="primary small-btn">Save</button>
+                    </row>
+                    <row class="line">
+                        <input_select id="bond-saved" class="grow" placeholder="Saved ones"><option value="">&#8212;</option></input_select>
+                        <button id="bond-load" class="ghost">Load</button>
+                        <button id="bond-delete" class="ghost">Delete</button>
+                    </row>
+                    <text id="bond-save-status" class="hint"></text>
+                </column>
+            </column>
+            <column class="chem-stage">
+                <canvas id="chem-bond-view" tabindex="0" />
+            </column>
+            <column class="chem-info scroll">
+                <column id="bond-selection" class="panel"></column>
+                <column id="bond-readouts" class="panel"></column>
+            </column>
+        </row>
+    </body>
+</grove>

@@ -98,10 +98,6 @@ input_select {
     color: var(--accent);
 }
 
-.brand.small {
-    font-size: 18px;
-}
-
 .tagline {
     color: var(--muted);
     font-size: 14px;
@@ -109,88 +105,6 @@ input_select {
 
 .speed {
     width: 90px;
-}
-
-.home-inner {
-    padding: 24px 40px 40px 40px;
-    gap: 14px;
-    width: 100%;
-    max-width: 1800px;
-    align-self: center;
-}
-
-.section-title {
-    margin: 12px 0 6px 0;
-    font-size: 28px;
-}
-
-#section-about {
-    font-size: 16px;
-    margin: 2px 0 8px 0;
-}
-
-.tabs {
-    gap: 10px;
-    row-gap: 10px;
-    flex-wrap: wrap;
-    user-select: none;
-}
-
-.tab {
-    display: inline-block;
-    padding: 11px 26px;
-    font-size: 16px;
-    border-radius: 24px;
-    background: var(--card);
-    border-color: var(--line);
-    border-width: 1px;
-    cursor: pointer;
-
-    &:hover {
-        background: var(--hover);
-    }
-}
-
-.tab.on {
-    background: var(--accent);
-    border-color: var(--accent);
-    color: var(--bg);
-    font-weight: bold;
-}
-
-.cards {
-    gap: 18px;
-    row-gap: 18px;
-    flex-wrap: wrap;
-}
-
-.card {
-    width: 360px;
-    min-height: 150px;
-    min-width: 0;
-    padding: 22px 24px;
-    gap: 10px;
-    background: var(--card);
-    border-color: var(--line);
-    border-width: 1px;
-    border-radius: 14px;
-    cursor: pointer;
-    user-select: none;
-
-    &:hover {
-        background: var(--hover);
-        border-color: var(--accent);
-    }
-}
-
-.card-title {
-    font-weight: bold;
-    font-size: 20px;
-}
-
-.card-text {
-    color: var(--muted);
-    font-size: 15px;
 }
 
 #workspace {
@@ -213,15 +127,6 @@ input_select {
     margin: 10px 0 2px 0;
     font-size: 14px;
     color: var(--muted);
-}
-
-.about {
-    font-size: 13px;
-}
-
-.note {
-    font-size: 12px;
-    margin: 10px 0 0 0;
 }
 
 .params {

@@ -1,0 +1,75 @@
+<!grove>
+<grove>
+    <head>
+        <title>Reactions</title>
+    </head>
+    <body>
+        <row class="chem-workspace">
+            <column class="chem-col scroll">
+                <h3 class="side-title">Predict the products</h3>
+                <text class="hint">Type only the left side. Combustion, synthesis, decomposition, single and double replacement, neutralization, oxides with water, weak acid and base ionization and esterification are recognized; equilibria get &#8652;.</text>
+                <row class="line">
+                    <input_string id="pred-left" class="grow" value="C3H8 + O2" placeholder="Zn + CuSO4, NaOH + H2SO4, CaCO3" />
+                    <button id="pred-go" class="primary small-btn">Predict</button>
+                </row>
+                <row class="line wrap">
+                    <button class="ghost pred-example" value="CH4 + O2">CH4 + O2</button>
+                    <button class="ghost pred-example" value="AgNO3 + NaCl">AgNO3 + NaCl</button>
+                    <button class="ghost pred-example" value="Zn + HCl">Zn + HCl</button>
+                    <button class="ghost pred-example" value="NaOH + H2SO4">NaOH + H2SO4</button>
+                    <button class="ghost pred-example" value="CaCO3">CaCO3</button>
+                    <button class="ghost pred-example" value="Na2O + H2O">Na2O + H2O</button>
+                    <button class="ghost pred-example" value="NH3 + H2O">NH3 + H2O</button>
+                    <button class="ghost pred-example" value="Cl2 + NaBr">Cl2 + NaBr</button>
+                </row>
+                <column id="pred-out" class="panel"></column>
+                <row class="line">
+                    <button id="pred-to-balance" class="ghost">Use in the balancer</button>
+                    <button id="pred-to-stoich" class="ghost">Use for amounts</button>
+                </row>
+
+                <h3 class="side-title">Balance an equation</h3>
+                <row class="line">
+                    <input_string id="bal-left" class="grow" value="Fe + O2" placeholder="reactants" />
+                    <input_select id="bal-arrow" class="arrow-select" value="->">
+                        <option value="->">&#8594;</option>
+                        <option value="<=>">&#8652;</option>
+                    </input_select>
+                    <input_string id="bal-right" class="grow" value="Fe2O3" placeholder="products" />
+                    <button id="bal-go" class="primary small-btn">Balance</button>
+                </row>
+                <text class="hint">Charges work too: MnO4- + Fe2+ + H+ &#8594; Mn2+ + Fe3+ + H2O.</text>
+                <column id="bal-out" class="panel"></column>
+                <row class="line">
+                    <text class="muted">Thermodynamics at</text>
+                    <input_float id="rx-t" class="small" value="25" />
+                    <input_select id="rx-t-unit" class="unit-select" dimension="temperature" value="&#176;C"><option>&#176;C</option></input_select>
+                </row>
+            </column>
+            <column class="chem-col scroll">
+                <h3 class="side-title">How much? (stoichiometry)</h3>
+                <text class="hint">Give the amounts you have of any species (mass, moles, gas volume, or solution volume with its molarity); the rest, the limiting reactant and the yields are worked out.</text>
+                <row class="line">
+                    <input_string id="st-equation" class="grow" value="2 H2 + O2 -> 2 H2O" />
+                    <button id="st-load" class="ghost">Load species</button>
+                </row>
+                <column id="st-species" class="params"></column>
+                <row class="line">
+                    <text class="label-w">T</text>
+                    <input_float id="st-t" class="small" value="25" />
+                    <input_select id="st-t-unit" class="unit-select" dimension="temperature" value="&#176;C"><option>&#176;C</option></input_select>
+                    <text class="label-w">P</text>
+                    <input_float id="st-p" class="small" value="1" />
+                    <input_select id="st-p-unit" class="unit-select" dimension="pressure" value="atm"><option>atm</option></input_select>
+                </row>
+                <row class="line">
+                    <text class="muted">Show masses in</text>
+                    <input_select id="st-out-unit" class="unit-select" dimension="mass" value="g"><option>g</option></input_select>
+                    <div class="grow"></div>
+                    <button id="st-go" class="primary small-btn">Solve</button>
+                </row>
+                <column id="st-out" class="panel"></column>
+            </column>
+        </row>
+    </body>
+</grove>

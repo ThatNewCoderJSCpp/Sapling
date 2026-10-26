@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.18)
-project(sapling VERSION 0.1.4 DESCRIPTION "Sapling: physics simulations and sandboxes built with Fizmo, Grove and Walnut" LANGUAGES C CXX)
+project(sapling VERSION 0.1.5 DESCRIPTION "Sapling: a physics and chemistry sandbox built with Fizmo, Grove and Walnut" LANGUAGES C CXX)
 
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
@@ -11,9 +11,9 @@ option(SAPLING_WITH_WALNUT "Build Walnut alongside Grove so Sapling's Walnut scr
 option(SAPLING_BUILD_TESTS "Build the Sapling tests" ON)
 option(SAPLING_PACKAGE "Make release packages: sapling with its window and compiled script built in, linked so it runs without a compiler" OFF)
 option(SAPLING_BUNDLE "Run sapling-host --bundle as part of the build to make sapling with its window built in (turn off when cross-compiling, then bundle on the target)" ON)
-set(SAPLING_FIZMO_TAG "v0.3.4" CACHE STRING "Fizmo git tag to fetch (needs the numerics component)")
-set(SAPLING_GROVE_TAG "v0.2.5" CACHE STRING "Grove git tag to fetch")
-set(SAPLING_WALNUT_TAG "v0.2.6" CACHE STRING "Walnut git tag Grove fetches")
+set(SAPLING_FIZMO_TAG "v0.3.5" CACHE STRING "Fizmo git tag to fetch (needs the numerics and chemistry components)")
+set(SAPLING_GROVE_TAG "v0.2.6" CACHE STRING "Grove git tag to fetch")
+set(SAPLING_WALNUT_TAG "v0.2.8" CACHE STRING "Walnut git tag Grove fetches")
 
 if(ANDROID)
     set(SAPLING_WITH_WALNUT OFF CACHE BOOL "" FORCE)
@@ -69,14 +69,29 @@ endif()
 
 add_library(sapling_core STATIC
     Source/canvas.cpp
+    Source/canvas_shapes.cpp
+    Source/canvas_text.cpp
     Source/simulation.cpp
-    Source/Simulations/mechanics.cpp
-    Source/Simulations/gravity.cpp
-    Source/Simulations/fields.cpp)
+    Source/chemistry/bonding_covalent.cpp
+    Source/chemistry/bonding_lattice.cpp
+    Source/chemistry/bonding_view.cpp
+    Source/chemistry/molecule_draw.cpp
+    Source/chemistry/orbital_views.cpp
+    Source/chemistry/phase_view.cpp
+    Source/chemistry/render.cpp
+    Source/chemistry/storage.cpp
+    Source/chemistry/structure_view.cpp
+    Source/chemistry/tools.cpp
+    Source/chemistry/view_util.cpp)
 add_library(sapling::core ALIAS sapling_core)
 target_compile_features(sapling_core PUBLIC cxx_std_17)
 target_include_directories(sapling_core PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/Include" PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/Source")
 target_link_libraries(sapling_core PUBLIC fizmo::numerics)
+if(TARGET fizmo::chemistry)
+    target_link_libraries(sapling_core PUBLIC fizmo::chemistry)
+else()
+    message(FATAL_ERROR "Sapling's chemistry section needs Fizmo's chemistry component (fizmo::chemistry). Use Fizmo ${SAPLING_FIZMO_TAG} or newer, or point FETCHCONTENT_SOURCE_DIR_FIZMO at a Fizmo checkout that has it.")
+endif()
 find_package(Threads REQUIRED)
 target_link_libraries(sapling_core PUBLIC Threads::Threads)
 sapling_warnings(sapling_core)
@@ -116,6 +131,7 @@ endif()
 add_custom_command(TARGET sapling-host POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/UI" "$<TARGET_FILE_DIR:sapling-host>/ui")
 
+file(GLOB_RECURSE SAPLING_UI_FILES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/UI/*.grove" "${CMAKE_CURRENT_SOURCE_DIR}/UI/*.bark" "${CMAKE_CURRENT_SOURCE_DIR}/UI/*.wal")
 set(SAPLING_BUNDLED "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/sapling${CMAKE_EXECUTABLE_SUFFIX}")
 set(SAPLING_BUNDLE_DEPENDS sapling-host)
 if(TARGET walnut)
@@ -124,10 +140,7 @@ endif()
 if(SAPLING_BUNDLE)
     add_custom_command(OUTPUT "${SAPLING_BUNDLED}"
         COMMAND ${CMAKE_COMMAND} -E env "SAPLING_UI_DIR=${CMAKE_CURRENT_SOURCE_DIR}/UI" $<TARGET_FILE:sapling-host> --bundle "${SAPLING_BUNDLED}" ${SAPLING_BUNDLE_FLAGS}
-        DEPENDS ${SAPLING_BUNDLE_DEPENDS}
-            "${CMAKE_CURRENT_SOURCE_DIR}/UI/sapling.grove"
-            "${CMAKE_CURRENT_SOURCE_DIR}/UI/sapling.bark"
-            "${CMAKE_CURRENT_SOURCE_DIR}/UI/sapling.wal"
+        DEPENDS ${SAPLING_BUNDLE_DEPENDS} ${SAPLING_UI_FILES}
         COMMENT "Building sapling with its window and compiled script built in"
         VERBATIM)
     add_custom_target(sapling ALL DEPENDS "${SAPLING_BUNDLED}")

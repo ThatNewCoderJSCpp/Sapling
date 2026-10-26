@@ -1,0 +1,61 @@
+<!grove>
+<grove>
+    <head>
+        <title>Solvers</title>
+    </head>
+    <body>
+        <row class="chem-workspace">
+            <column class="chem-col scroll">
+                <h3 class="side-title">Equation solver</h3>
+                <text class="hint">Pick an equation, fill in what you know in any units, and leave the one you want blank (or choose it below).</text>
+                <row class="line">
+                    <input_select id="sv-category" class="grow" value="all">
+                        <option value="all">All topics</option>
+                    </input_select>
+                </row>
+                <row class="line">
+                    <input_select id="sv-equation" class="grow"><option value="">&#8212;</option></input_select>
+                </row>
+                <text id="sv-formula" class="formula"></text>
+                <text id="sv-notes" class="hint"></text>
+                <column id="sv-vars" class="params"></column>
+                <row class="line">
+                    <text class="muted">Solve for</text>
+                    <input_select id="sv-unknown" class="grow" placeholder="the blank one"><option value="">&#8212;</option></input_select>
+                    <button id="sv-go" class="primary small-btn">Solve</button>
+                </row>
+                <text id="sv-result" class="result"></text>
+            </column>
+            <column class="chem-col scroll">
+                <h3 class="side-title">Unit converter</h3>
+                <row class="line">
+                    <input_select id="cv-dim" class="grow" value="temperature"><option value="temperature">temperature</option></input_select>
+                </row>
+                <row class="line">
+                    <input_float id="cv-value" class="grow" value="25" />
+                    <input_select id="cv-from" class="cv-unit"><option value="">&#8212;</option></input_select>
+                    <text class="muted">to</text>
+                    <input_select id="cv-to" class="cv-unit"><option value="">&#8212;</option></input_select>
+                </row>
+                <text id="cv-result" class="result"></text>
+
+                <h3 class="side-title">Molar mass and percent composition</h3>
+                <row class="line">
+                    <input_string id="pc-formula" class="grow" value="C6H12O6" placeholder="formula" />
+                    <button id="pc-go" class="primary small-btn">Go</button>
+                </row>
+                <column id="pc-out" class="panel"></column>
+
+                <h3 class="side-title">Empirical and molecular formula</h3>
+                <text class="hint">Grams or mass percent of each element, then the molar mass if you know it.</text>
+                <row class="line">
+                    <input_string id="ef-masses" class="grow" value="C=40.0; H=6.71; O=53.3" />
+                    <input_string id="ef-molar" class="small" value="180" />
+                    <text class="muted">g/mol</text>
+                    <button id="ef-go" class="primary small-btn">Find</button>
+                </row>
+                <column id="ef-out" class="panel"></column>
+            </column>
+        </row>
+    </body>
+</grove>

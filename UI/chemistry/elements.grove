@@ -1,0 +1,27 @@
+<!grove>
+<grove>
+    <head>
+        <title>Elements</title>
+    </head>
+    <body>
+        <row class="chem-workspace">
+            <column class="chem-col scroll">
+                <input_element id="el-table" value="Fe" />
+                <row class="line">
+                    <text class="muted">Ion charge</text>
+                    <input_integer id="el-charge" class="small" value="0" min="-3" max="8" />
+                    <text class="muted">Picture</text>
+                    <input_select id="el-style" value="both">
+                        <option value="both">Shells and orbital boxes</option>
+                        <option value="bohr">Shells (Bohr model)</option>
+                        <option value="boxes">Orbital boxes</option>
+                    </input_select>
+                </row>
+                <canvas id="chem-element-view" class="element-canvas" />
+            </column>
+            <column class="chem-info scroll">
+                <column id="el-readouts" class="panel"></column>
+            </column>
+        </row>
+    </body>
+</grove>

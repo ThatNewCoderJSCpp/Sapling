@@ -1,0 +1,1063 @@
+import module.grove
+import module.strings
+import module.io
+
+string: bond_mode = "covalent";
+string: bond_version = "";
+string: phase_version = "";
+long int: st_count = 0;
+string: sv_vars = "";
+string: unit_dims = "temperature,pressure,molar energy,length,mass,volume,amount,density,specific volume,molar volume,molar mass,concentration,dipole moment,molar entropy";
+
+function ccall(const string&: name, const string&: argument) -> string;
+function cmd(const string&: view, const string&: args) -> string;
+function tool(const string&: args) -> string;
+function panel(const string&: view, const string&: args) -> string;
+function toolpanel(const string&: args) -> string;
+function by(const string&: id) -> grove::Element;
+function cel(const string&: tag, const string&: cls, const string&: label) -> grove::Element;
+function cclear(grove::Element&: e) -> void;
+function b01(bool: v) -> string;
+function field(const string&: body, long int: index) -> string;
+function state_value(const string&: key) -> string;
+function fill_panel(const string&: id, const string&: body) -> void;
+function fill_select(const string&: id, const string&: body, const string&: keep) -> void;
+function add_option(grove::Element&: select, const string&: value, const string&: label) -> void;
+function fill_units() -> void;
+function seg_on(const string&: ids, const string&: on) -> void;
+function show_if(const string&: id, bool: visible) -> void;
+function on_click(const string&: id, function() -> void: fn) -> void;
+function on_change(const string&: id, function() -> void: fn) -> void;
+function status(const string&: id, const string&: reply, const string&: good) -> void;
+function bond_refresh() -> void;
+function bond_set_mode(const string&: mode) -> void;
+function bond_send_tp() -> void;
+function bond_saved_refresh() -> void;
+function metal_build_sliders() -> void;
+function metal_send() -> void;
+function metal_preset(const string&: symbols, const string&: percents) -> void;
+function ions_fill_list() -> void;
+function ions_show(const string&: name) -> void;
+function st_load(const string&: equation) -> void;
+function st_solve() -> void;
+function sv_fill_equations() -> void;
+function sv_load_equation() -> void;
+function sv_solve() -> void;
+function cv_fill_units() -> void;
+function cv_convert() -> void;
+function phase_refresh(bool: props) -> void;
+function phase_send_point() -> void;
+function phase_saved_refresh() -> void;
+function phase_build_props() -> void;
+function orb_refresh() -> void;
+function cloud_refresh(bool: orbitals) -> void;
+string: cloud_keep = "2,1,0";
+function element_refresh() -> void;
+function units_build() -> void;
+function refresh_all() -> void;
+
+function ccall(const string&: name, const string&: argument) -> string {
+    return grove::call("sapling." + name, argument);
+} end function ccall
+
+function cmd(const string&: view, const string&: args) -> string {
+    return ccall("chem.cmd", view + "\t" + args);
+} end function cmd
+
+function tool(const string&: args) -> string {
+    return ccall("chem.tool", args);
+} end function tool
+
+function panel(const string&: view, const string&: args) -> string {
+    return ccall("chem.panel", view + "\t" + args);
+} end function panel
+
+function toolpanel(const string&: args) -> string {
+    return ccall("chem.toolpanel", args);
+} end function toolpanel
+
+function by(const string&: id) -> grove::Element {
+    return grove::get_by_id(id);
+} end function by
+
+function cel(const string&: tag, const string&: cls, const string&: label) -> grove::Element {
+    grove::Element: e = grove::create_element(tag);
+    if (!cls.empty()) then {
+        e.set_attribute("class", cls);
+    }
+    if (!label.empty()) then {
+        e.set_inner_text(label);
+    }
+    return e;
+} end function cel
+
+function cclear(grove::Element&: e) -> void {
+    while (e.child_count() > 0l) {
+        e.child(0l).remove();
+    }
+} end function cclear
+
+function b01(bool: v) -> string {
+    if (v) then {
+        return "1";
+    }
+    return "0";
+} end function b01
+
+function field(const string&: body, long int: index) -> string {
+    auto: f = body.split("\t");
+    if (index < f.size()) then {
+        return f[index];
+    }
+    return "";
+} end function field
+
+function state_value(const string&: key) -> string {
+    auto: rows = cmd("bond", "state").split("\n");
+    for (long int: i = 0l; i < rows.size(); i += 1l) {
+        auto: f = rows[i].split("\t");
+        if (f.size() >= 2l && f[0] == key) then {
+            return f[1];
+        }
+    }
+    return "";
+} end function state_value
+
+function fill_panel(const string&: id, const string&: body) -> void {
+    grove::Element: box = by(id);
+    cclear(box);
+    auto: rows = body.split("\n");
+    for (long int: i = 0l; i < rows.size(); i += 1l) {
+        auto: f = rows[i].split("\t");
+        if (f.size() < 2l) then {
+            continue;
+        }
+        if (f[0] == "h") then {
+            grove::Element: line = cel("row", "panel-line", "");
+            line.append_child(cel("text", "panel-head", f[1]));
+            box.append_child(line);
+        } else if (f[0] == "w") then {
+            grove::Element: line = cel("row", "panel-line", "");
+            line.append_child(cel("text", "panel-warn", f[1]));
+            box.append_child(line);
+        } else if (f[0] == "n") then {
+            grove::Element: line = cel("row", "panel-line", "");
+            line.append_child(cel("text", "panel-note", f[1]));
+            box.append_child(line);
+        } else if (f.size() >= 3l) then {
+            grove::Element: row = cel("row", "panel-row", "");
+            row.append_child(cel("text", "panel-label", f[1]));
+            row.append_child(cel("text", "panel-value", f[2]));
+            box.append_child(row);
+        }
+    }
+} end function fill_panel
+
+function add_option(grove::Element&: select, const string&: value, const string&: label) -> void {
+    grove::Element: o = grove::create_element("option");
+    o.set_attribute("value", value);
+    if (label.empty()) then {
+        o.set_inner_text(value);
+    } else then {
+        o.set_inner_text(label);
+    }
+    select.append_child(o);
+} end function add_option
+
+function fill_select(const string&: id, const string&: body, const string&: keep) -> void {
+    grove::Element: s = by(id);
+    cclear(s);
+    auto: rows = body.split("\n");
+    bool: found = false;
+    string: first = "";
+    for (long int: i = 0l; i < rows.size(); i += 1l) {
+        if (rows[i].empty()) then {
+            continue;
+        }
+        auto: f = rows[i].split("\t");
+        string: label = "";
+        if (f.size() > 1l) then {
+            label = f[1];
+        }
+        add_option(s, f[0], label);
+        if (first.empty()) then {
+            first = f[0];
+        }
+        if (f[0] == keep) then {
+            found = true;
+        }
+    }
+    if (found) then {
+        s.set_value_string(keep);
+    } else if (!first.empty() && !s.has_attribute("placeholder")) then {
+        s.set_value_string(first);
+    }
+} end function fill_select
+
+function fill_units() -> void {
+    grove::ElementList: list = grove::query_all(".unit-select");
+    for (long int: i = 0l; i < list.size(); i += 1l) {
+        grove::Element: s = list.at(i);
+        string: dim = s.get_attribute("dimension");
+        string: keep = s.get_attribute("value");
+        string: units = tool("unit_list\t" + dim);
+        cclear(s);
+        auto: rows = units.split("\n");
+        for (long int: k = 0l; k < rows.size(); k += 1l) {
+            if (!rows[k].empty()) then {
+                add_option(s, rows[k], "");
+            }
+        }
+        if (!keep.empty()) then {
+            s.set_value_string(keep);
+        }
+    }
+} end function fill_units
+
+function seg_on(const string&: ids, const string&: on) -> void {
+    auto: list = ids.split(",");
+    for (long int: i = 0l; i < list.size(); i += 1l) {
+        grove::Element: b = by(list[i]);
+        if (list[i] == on) then {
+            b.add_class("on");
+        } else then {
+            b.remove_class("on");
+        }
+    }
+} end function seg_on
+
+function show_if(const string&: id, bool: visible) -> void {
+    grove::Element: e = by(id);
+    if (visible) then {
+        e.remove_class("hidden");
+    } else then {
+        e.add_class("hidden");
+    }
+} end function show_if
+
+function on_click(const string&: id, function() -> void: fn) -> void {
+    by(id).on("click", [fn](grove::Event&: e) -> void {
+        fn();
+    });
+} end function on_click
+
+function on_change(const string&: id, function() -> void: fn) -> void {
+    by(id).on("change", [fn](grove::Event&: e) -> void {
+        fn();
+    });
+} end function on_change
+
+function status(const string&: id, const string&: reply, const string&: good) -> void {
+    if (field(reply, 0l) == "error") then {
+        by(id).set_inner_text(field(reply, 1l));
+    } else then {
+        by(id).set_inner_text(good);
+    }
+} end function status
+
+function bond_refresh() -> void {
+    fill_panel("bond-readouts", panel("bond", "readouts"));
+    fill_panel("bond-selection", panel("bond", "selection"));
+    if (bond_mode == "covalent") then {
+        fill_select("cov-resonance", cmd("bond", "resonance_list"), by("cov-resonance").value_string());
+    }
+} end function bond_refresh
+
+function bond_set_mode(const string&: mode) -> void {
+    bond_mode = mode;
+    cmd("bond", "mode\t" + mode);
+    seg_on("bond-mode-covalent,bond-mode-ionic,bond-mode-metallic", "bond-mode-" + mode);
+    show_if("cov-controls", mode == "covalent");
+    show_if("ion-controls", mode == "ionic");
+    show_if("metal-controls", mode == "metallic");
+    show_if("lattice-controls", mode != "covalent");
+    by("opt-neighbors").set_value_bool(mode == "ionic");
+    bond_saved_refresh();
+    bond_refresh();
+} end function bond_set_mode
+
+function bond_send_tp() -> void {
+    string: t = by("bond-t").value_float().to_string();
+    string: p = by("bond-p").value_float().to_string();
+    string: reply = cmd("bond", "tp\t" + t + "\t" + by("bond-t-unit").value_string() + "\t" + p + "\t" + by("bond-p-unit").value_string());
+    status("bond-save-status", reply, "");
+    bond_refresh();
+} end function bond_send_tp
+
+function bond_saved_refresh() -> void {
+    fill_select("bond-saved", cmd("bond", "saved\t" + bond_mode), by("bond-saved").value_string());
+} end function bond_saved_refresh
+
+function metal_build_sliders() -> void {
+    grove::Element: box = by("metal-fractions");
+    cclear(box);
+    auto: syms = by("metal-elements").value_string().split(" ");
+    long int: n = 0l;
+    for (long int: i = 0l; i < syms.size(); i += 1l) {
+        if (!syms[i].empty()) then {
+            n += 1l;
+        }
+    }
+    if (n == 0l) then {
+        return;
+    }
+    short float: share = static_cast<short float>(100.0 / n);
+    for (long int: i = 0l; i < syms.size(); i += 1l) {
+        string: sym = syms[i];
+        if (sym.empty()) then {
+            continue;
+        }
+        grove::Element: row = cel("row", "line", "");
+        row.append_child(cel("text", "label-w", sym));
+        grove::Element: s = grove::create_element("input_slider");
+        s.set_attribute("id", "mf-" + sym);
+        s.set_attribute("class", "grow");
+        s.set_attribute("min", "0");
+        s.set_attribute("max", "100");
+        s.set_attribute("step", "0.5");
+        s.set_value_float(share);
+        grove::Element: v = cel("text", "small", "");
+        v.set_attribute("id", "mfv-" + sym);
+        v.set_inner_text(share.to_string());
+        s.on("change", [sym](grove::Event&: e) -> void {
+            by("mfv-" + sym).set_inner_text(e.target().value_float().to_string());
+            metal_send();
+        });
+        row.append_child(s);
+        row.append_child(v);
+        box.append_child(row);
+    }
+} end function metal_build_sliders
+
+function metal_send() -> void {
+    auto: syms = by("metal-elements").value_string().split(" ");
+    string: spec = "";
+    for (long int: i = 0l; i < syms.size(); i += 1l) {
+        if (syms[i].empty()) then {
+            continue;
+        }
+        grove::Element: s = by("mf-" + syms[i]);
+        if (!s.exists()) then {
+            continue;
+        }
+        spec = spec + syms[i] + "=" + s.value_float().to_string() + ";";
+    }
+    string: reply = cmd("bond", "metal\t" + spec);
+    status("bond-save-status", reply, "");
+    bond_refresh();
+} end function metal_send
+
+function metal_preset(const string&: symbols, const string&: percents) -> void {
+    by("metal-elements").set_value_string(symbols);
+    metal_build_sliders();
+    auto: syms = symbols.split(" ");
+    auto: pct = percents.split(" ");
+    for (long int: i = 0l; i < syms.size() && i < pct.size(); i += 1l) {
+        by("mf-" + syms[i]).set_value_float(std::io::parse_float<short float>(pct[i]));
+        by("mfv-" + syms[i]).set_inner_text(pct[i]);
+    }
+    metal_send();
+} end function metal_preset
+
+function ions_fill_list() -> void {
+    grove::Element: box = by("ions-list");
+    cclear(box);
+    auto: rows = tool("ions\t" + by("ions-category").value_string() + "\t" + by("ions-search").value_string()).split("\n");
+    long int: shown = 0l;
+    for (long int: i = 0l; i < rows.size(); i += 1l) {
+        auto: f = rows[i].split("\t");
+        if (f.size() < 4l) then {
+            continue;
+        }
+        string: name = f[0];
+        grove::Element: row = cel("row", "ion-row", "");
+        row.append_child(cel("text", "ion-formula", f[1]));
+        row.append_child(cel("text", "ion-name", f[0]));
+        row.on("click", [name](grove::Event&: e) -> void {
+            ions_show(name);
+        });
+        box.append_child(row);
+        shown += 1l;
+    }
+    by("ions-count").set_inner_text(shown.to_string() + " ions");
+} end function ions_fill_list
+
+function ions_show(const string&: name) -> void {
+    string: reply = cmd("structure", "show\t" + name);
+    if (field(reply, 0l) == "ok") then {
+        by("ions-title").set_inner_text(field(reply, 1l));
+    } else then {
+        by("ions-title").set_inner_text(name + " (no structure)");
+    }
+    fill_panel("ions-info", toolpanel("ion_info\t" + name));
+    fill_panel("ions-structure", panel("structure", "readouts"));
+} end function ions_show
+
+function st_load(const string&: equation) -> void {
+    by("st-equation").set_value_string(equation);
+    grove::Element: box = by("st-species");
+    cclear(box);
+    string: rows_text = tool("stoich_species\t" + equation);
+    st_count = 0l;
+    if (field(rows_text, 0l) == "error") then {
+        box.append_child(cel("text", "panel-warn", field(rows_text, 1l)));
+        return;
+    }
+    auto: rows = rows_text.split("\n");
+    for (long int: i = 0l; i < rows.size(); i += 1l) {
+        auto: f = rows[i].split("\t");
+        if (f.size() < 5l) then {
+            continue;
+        }
+        string: idx = f[0];
+        grove::Element: row = cel("row", "species-row", "");
+        row.append_child(cel("text", "species-name", f[3] + " " + f[1]));
+        grove::Element: amount = grove::create_element("input_string");
+        amount.set_attribute("id", "st-amt-" + idx);
+        amount.set_attribute("class", "grow");
+        amount.set_attribute("placeholder", f[2] + ", " + f[4] + " g/mol");
+        row.append_child(amount);
+        grove::Element: unit = grove::create_element("input_select");
+        unit.set_attribute("id", "st-unit-" + idx);
+        add_option(unit, "g", "");
+        add_option(unit, "kg", "");
+        add_option(unit, "mg", "");
+        add_option(unit, "lb", "");
+        add_option(unit, "mol", "");
+        add_option(unit, "mmol", "");
+        add_option(unit, "particles", "");
+        add_option(unit, "L", "L (gas, or solution)");
+        add_option(unit, "mL", "mL (gas, or solution)");
+        unit.set_value_string("g");
+        row.append_child(unit);
+        grove::Element: molar = grove::create_element("input_string");
+        molar.set_attribute("id", "st-mol-" + idx);
+        molar.set_attribute("class", "small");
+        molar.set_attribute("placeholder", "M");
+        row.append_child(molar);
+        box.append_child(row);
+        st_count += 1l;
+    }
+} end function st_load
+
+function st_solve() -> void {
+    string: spec = "";
+    for (long int: i = 0l; i < st_count; i += 1l) {
+        string: idx = i.to_string();
+        string: v = by("st-amt-" + idx).value_string();
+        if (v.empty()) then {
+            continue;
+        }
+        spec = spec + idx + "|" + v + "|" + by("st-unit-" + idx).value_string() + "|" + by("st-mol-" + idx).value_string() + "|M;";
+    }
+    string: args = "stoich\t" + by("st-equation").value_string() + "\t" + spec;
+    args = args + "\t" + by("st-t").value_float().to_string() + "\t" + by("st-t-unit").value_string();
+    args = args + "\t" + by("st-p").value_float().to_string() + "\t" + by("st-p-unit").value_string();
+    args = args + "\t" + by("st-out-unit").value_string();
+    fill_panel("st-out", toolpanel(args));
+} end function st_solve
+
+function sv_fill_equations() -> void {
+    fill_select("sv-equation", tool("equations\t" + by("sv-category").value_string()), by("sv-equation").value_string());
+    sv_load_equation();
+} end function sv_fill_equations
+
+function sv_load_equation() -> void {
+    string: id = by("sv-equation").value_string();
+    grove::Element: box = by("sv-vars");
+    cclear(box);
+    grove::Element: unknown = by("sv-unknown");
+    cclear(unknown);
+    add_option(unknown, "", "the blank one");
+    sv_vars = "";
+    if (id.empty()) then {
+        return;
+    }
+    auto: rows = tool("equation\t" + id).split("\n");
+    by("sv-notes").set_inner_text("");
+    for (long int: i = 0l; i < rows.size(); i += 1l) {
+        auto: f = rows[i].split("\t");
+        if (f.size() < 2l) then {
+            continue;
+        }
+        if (f[0] == "formula") then {
+            by("sv-formula").set_inner_text(f[1]);
+        } else if (f[0] == "notes") then {
+            by("sv-notes").set_inner_text(f[1]);
+        } else if (f[0] == "var" && f.size() >= 6l) then {
+            string: vid = f[1];
+            if (sv_vars.empty()) then {
+                sv_vars = vid;
+            } else then {
+                sv_vars = sv_vars + "," + vid;
+            }
+            add_option(unknown, vid, f[2]);
+            grove::Element: row = cel("row", "var-row", "");
+            row.append_child(cel("text", "var-label", f[2]));
+            grove::Element: input = grove::create_element("input_string");
+            input.set_attribute("id", "sv-v-" + vid);
+            input.set_attribute("class", "grow");
+            row.append_child(input);
+            auto: units = f[5].split(",");
+            if (units.size() > 1l) then {
+                grove::Element: sel = grove::create_element("input_select");
+                sel.set_attribute("id", "sv-u-" + vid);
+                for (long int: k = 0l; k < units.size(); k += 1l) {
+                    add_option(sel, units[k], "");
+                }
+                sel.set_value_string(f[4]);
+                row.append_child(sel);
+            } else then {
+                row.append_child(cel("text", "muted", f[5]));
+            }
+            box.append_child(row);
+        }
+    }
+    unknown.set_value_string("");
+    by("sv-result").set_inner_text("");
+} end function sv_load_equation
+
+function sv_solve() -> void {
+    string: id = by("sv-equation").value_string();
+    auto: vars = sv_vars.split(",");
+    string: spec = "";
+    string: unknown = by("sv-unknown").value_string();
+    long int: blanks = 0l;
+    string: blank = "";
+    for (long int: i = 0l; i < vars.size(); i += 1l) {
+        if (vars[i].empty()) then {
+            continue;
+        }
+        string: v = by("sv-v-" + vars[i]).value_string();
+        string: unit = "";
+        grove::Element: sel = by("sv-u-" + vars[i]);
+        if (sel.exists()) then {
+            unit = sel.value_string();
+        }
+        if (v.empty() || vars[i] == unknown) then {
+            blanks += 1l;
+            blank = vars[i];
+            continue;
+        }
+        spec = spec + vars[i] + "=" + v + "|" + unit + ";";
+    }
+    if (unknown.empty()) then {
+        if (blanks != 1l) then {
+            by("sv-result").set_inner_text("Leave exactly one box blank, or pick what to solve for.");
+            return;
+        }
+        unknown = blank;
+    }
+    string: out_unit = "";
+    grove::Element: out_sel = by("sv-u-" + unknown);
+    if (out_sel.exists()) then {
+        out_unit = out_sel.value_string();
+    }
+    string: reply = tool("solve\t" + id + "\t" + spec + "\t" + unknown + "\t" + out_unit);
+    if (field(reply, 0l) == "ok") then {
+        by("sv-v-" + field(reply, 1l)).set_value_string(field(reply, 2l));
+        string: msg = field(reply, 3l);
+        if (!field(reply, 4l).empty()) then {
+            msg = msg + "  (" + field(reply, 4l) + ")";
+        }
+        by("sv-result").set_inner_text(msg);
+    } else then {
+        by("sv-result").set_inner_text(field(reply, 1l));
+    }
+} end function sv_solve
+
+function cv_fill_units() -> void {
+    string: units = tool("unit_list\t" + by("cv-dim").value_string());
+    fill_select("cv-from", units, by("cv-from").value_string());
+    fill_select("cv-to", units, by("cv-to").value_string());
+    auto: list = units.split("\n");
+    if (list.size() > 1l && by("cv-from").value_string() == by("cv-to").value_string()) then {
+        by("cv-to").set_value_string(list[1]);
+    }
+    cv_convert();
+} end function cv_fill_units
+
+function cv_convert() -> void {
+    string: reply = tool("convert\t" + by("cv-value").value_float().to_string() + "\t" + by("cv-from").value_string() + "\t" + by("cv-to").value_string() + "\t" + by("cv-dim").value_string());
+    if (field(reply, 0l) == "ok") then {
+        by("cv-result").set_inner_text(field(reply, 2l));
+    } else then {
+        by("cv-result").set_inner_text(field(reply, 1l));
+    }
+} end function cv_convert
+
+function phase_refresh(bool: props) -> void {
+    fill_panel("ph-readouts", panel("phase", "readouts"));
+    if (props) then {
+        phase_build_props();
+    }
+    phase_version = cmd("phase", "version");
+} end function phase_refresh
+
+function phase_send_point() -> void {
+    cmd("phase", "point\t" + by("ph-t").value_float().to_string() + "\t" + by("ph-t-unit").value_string() + "\t" + by("ph-p").value_float().to_string() + "\t" + by("ph-p-unit").value_string());
+    phase_refresh(false);
+} end function phase_send_point
+
+function phase_saved_refresh() -> void {
+    auto: rows = cmd("phase", "saved").split("\n");
+    string: options_text = "";
+    for (long int: i = 0l; i < rows.size(); i += 1l) {
+        auto: f = rows[i].split("\t");
+        if (f.size() < 2l) then {
+            continue;
+        }
+        options_text = options_text + f[0] + "|" + f[1] + "\t" + f[1] + " (" + f[0] + ")\n";
+    }
+    fill_select("ph-saved", options_text, by("ph-saved").value_string());
+} end function phase_saved_refresh
+
+function phase_build_props() -> void {
+    grove::Element: box = by("ph-props");
+    cclear(box);
+    auto: rows = cmd("phase", "props").split("\n");
+    for (long int: i = 0l; i < rows.size(); i += 1l) {
+        auto: f = rows[i].split("\t");
+        if (f.size() < 6l) then {
+            continue;
+        }
+        string: key = f[0];
+        string: unit = f[4];
+        grove::Element: row = cel("row", "var-row", "");
+        string: label = f[1];
+        if (f[5] != "data") then {
+            label = label + " (" + f[5] + ")";
+        }
+        row.append_child(cel("text", "var-label", label));
+        grove::Element: input = grove::create_element("input_string");
+        input.set_attribute("class", "grow");
+        input.set_value_string(f[2]);
+        input.on("change", [key, unit](grove::Event&: e) -> void {
+            cmd("phase", "set_prop\t" + key + "\t" + e.target().value_string() + "\t" + unit);
+            phase_refresh(true);
+        });
+        row.append_child(input);
+        row.append_child(cel("text", "muted", unit));
+        box.append_child(row);
+    }
+} end function phase_build_props
+
+function orb_refresh() -> void {
+    fill_select("orb-show", cmd("orbital", "subshells"), by("orb-show").value_string());
+    fill_panel("orb-readouts", panel("orbital", "readouts"));
+} end function orb_refresh
+
+function cloud_refresh(bool: orbitals) -> void {
+    if (orbitals) then {
+        fill_select("cl-orbital", cmd("cloud", "orbitals"), cloud_keep);
+        cloud_keep = "atom";
+    }
+    fill_panel("cl-readouts", panel("cloud", "readouts"));
+} end function cloud_refresh
+
+function element_refresh() -> void {
+    cmd("element", "element\t" + by("el-table").value_string() + "\t" + by("el-charge").value_integer().to_string());
+    fill_panel("el-readouts", panel("element", "readouts"));
+} end function element_refresh
+
+function units_build() -> void {
+    grove::Element: box = by("units-prefs");
+    cclear(box);
+    auto: dims = unit_dims.split(",");
+    for (long int: i = 0l; i < dims.size(); i += 1l) {
+        string: dim = dims[i];
+        grove::Element: row = cel("row", "var-row", "");
+        row.append_child(cel("text", "var-label", dim));
+        grove::Element: sel = grove::create_element("input_select");
+        auto: units = tool("unit_list\t" + dim).split("\n");
+        for (long int: k = 0l; k < units.size(); k += 1l) {
+            if (!units[k].empty()) then {
+                add_option(sel, units[k], "");
+            }
+        }
+        sel.set_value_string(tool("units\t" + dim + "\t"));
+        sel.on("change", [dim](grove::Event&: e) -> void {
+            tool("units\t" + dim + "\t" + e.target().value_string());
+            refresh_all();
+        });
+        row.append_child(sel);
+        box.append_child(row);
+    }
+    by("units-save-dir").set_inner_text("The bonding sandbox saves into " + tool("save_dir") + " (one folder each for covalent, ionic and metallic). Set SAPLING_SAVE_DIR to keep them somewhere else.");
+} end function units_build
+
+function refresh_all() -> void {
+    bond_refresh();
+    phase_refresh(true);
+    orb_refresh();
+    cloud_refresh(false);
+    element_refresh();
+    fill_panel("ions-structure", panel("structure", "readouts"));
+} end function refresh_all
+
+fill_units();
+
+on_click("bond-mode-covalent", []() -> void { bond_set_mode("covalent"); });
+on_click("bond-mode-ionic", []() -> void { bond_set_mode("ionic"); });
+on_click("bond-mode-metallic", []() -> void { bond_set_mode("metallic"); });
+on_click("bond-view-2d", []() -> void {
+    cmd("bond", "view\t2d");
+    seg_on("bond-view-2d,bond-view-3d", "bond-view-2d");
+});
+on_click("bond-view-3d", []() -> void {
+    cmd("bond", "view\t3d");
+    seg_on("bond-view-2d,bond-view-3d", "bond-view-3d");
+    bond_refresh();
+});
+auto: tools = "atom,bond,move,erase,inspect".split(",");
+for (long int: i = 0l; i < tools.size(); i += 1l) {
+    string: t = tools[i];
+    on_click("tool-" + t, [t]() -> void {
+        cmd("bond", "tool\t" + t);
+        seg_on("tool-atom,tool-bond,tool-move,tool-erase,tool-inspect", "tool-" + t);
+    });
+}
+on_change("cov-element", []() -> void { cmd("bond", "element\t" + by("cov-element").value_string()); });
+on_change("cov-charge", []() -> void { cmd("bond", "charge\t" + by("cov-charge").value_integer().to_string()); });
+on_click("cov-fill", []() -> void { cmd("bond", "fill_h"); });
+on_click("cov-tidy", []() -> void { cmd("bond", "tidy"); });
+on_click("cov-fix", []() -> void { cmd("bond", "fix_lewis"); });
+on_click("cov-undo", []() -> void { cmd("bond", "undo"); });
+on_click("cov-redo", []() -> void { cmd("bond", "redo"); });
+on_click("cov-frame", []() -> void { cmd("bond", "frame"); });
+on_click("cov-clear", []() -> void { cmd("bond", "clear"); });
+on_click("cov-resonance-show", []() -> void {
+    string: v = by("cov-resonance").value_string();
+    if (!v.empty()) then {
+        cmd("bond", "resonance\t" + v);
+    }
+});
+on_change("cov-template-list", []() -> void {
+    string: v = by("cov-template-list").value_string();
+    if (!v.empty()) then {
+        string: reply = cmd("bond", "load_ion\t" + v);
+        status("bond-save-status", reply, "Loaded " + v);
+        by("cov-charge").set_value_integer(std::io::parse_int<long int>(state_value("charge")));
+    }
+});
+on_click("cov-template-load", []() -> void {
+    string: v = by("cov-template").value_string();
+    if (!v.empty()) then {
+        string: reply = cmd("bond", "load_compound\t" + v);
+        status("bond-save-status", reply, "Loaded " + v);
+    }
+});
+auto: options = "lone_pairs,formal_charges,partial_charges,bond_dipoles,molecular_dipole,labels,snap,space_fill,neighbors,unit_cell,thermal,electron_sea,field,spin".split(",");
+for (long int: i = 0l; i < options.size(); i += 1l) {
+    string: key = options[i];
+    on_change("opt-" + key, [key]() -> void {
+        cmd("bond", "option\t" + key + "\t" + b01(by("opt-" + key).value_bool()));
+    });
+}
+on_change("ion-metal", []() -> void {
+    status("bond-save-status", cmd("bond", "ionic\t" + by("ion-metal").value_string() + "\t" + by("ion-nonmetal").value_string()), "");
+    bond_refresh();
+});
+on_change("ion-nonmetal", []() -> void {
+    status("bond-save-status", cmd("bond", "ionic\t" + by("ion-metal").value_string() + "\t" + by("ion-nonmetal").value_string()), "");
+    bond_refresh();
+});
+on_click("ion-build", []() -> void {
+    string: c = by("ion-cation").value_string();
+    string: a = by("ion-anion").value_string();
+    if (c.empty()) then {
+        c = by("ion-metal").value_string();
+    }
+    if (a.empty()) then {
+        a = by("ion-nonmetal").value_string();
+    }
+    status("bond-save-status", cmd("bond", "ionic\t" + c + "\t" + a), "");
+    bond_refresh();
+});
+on_change("metal-elements", []() -> void {
+    metal_build_sliders();
+    metal_send();
+});
+on_click("metal-preset-brass", []() -> void { metal_preset("Cu Zn", "70 30"); });
+on_click("metal-preset-bronze", []() -> void { metal_preset("Cu Sn", "88 12"); });
+on_click("metal-preset-steel", []() -> void { metal_preset("Fe C", "96 4"); });
+on_click("metal-preset-solder", []() -> void { metal_preset("Sn Pb", "63 37"); });
+on_click("metal-preset-gold", []() -> void { metal_preset("Au Ag Cu", "60 20 20"); });
+on_change("lat-cells", []() -> void { cmd("bond", "cells\t" + by("lat-cells").value_float().to_string()); });
+on_click("lat-assemble", []() -> void { cmd("bond", "assemble"); });
+on_change("bond-t", []() -> void { bond_send_tp(); });
+on_change("bond-t-unit", []() -> void { bond_send_tp(); });
+on_change("bond-p", []() -> void { bond_send_tp(); });
+on_change("bond-p-unit", []() -> void { bond_send_tp(); });
+by("bond-t-slider").on("input", [](grove::Event&: e) -> void {
+    string: k = e.target().value_float().to_string();
+    string: reply = tool("convert\t" + k + "\tK\t" + by("bond-t-unit").value_string() + "\ttemperature");
+    if (field(reply, 0l) == "ok") then {
+        by("bond-t").set_value_float(std::io::parse_float<short float>(field(reply, 1l)));
+    }
+    cmd("bond", "tp\t" + k + "\tK\t" + by("bond-p").value_float().to_string() + "\t" + by("bond-p-unit").value_string());
+});
+by("bond-t-slider").on("change", [](grove::Event&: e) -> void { bond_refresh(); });
+on_click("bond-save", []() -> void {
+    string: reply = cmd("bond", "save\t" + by("bond-save-name").value_string());
+    status("bond-save-status", reply, "Saved to " + field(reply, 1l));
+    bond_saved_refresh();
+});
+on_click("bond-load", []() -> void {
+    string: name = by("bond-saved").value_string();
+    if (name.empty()) then {
+        return;
+    }
+    string: reply = cmd("bond", "load\t" + bond_mode + "\t" + name);
+    status("bond-save-status", reply, "Loaded " + name);
+    by("bond-save-name").set_value_string(name);
+    bond_refresh();
+});
+on_click("bond-delete", []() -> void {
+    string: name = by("bond-saved").value_string();
+    if (name.empty()) then {
+        return;
+    }
+    status("bond-save-status", cmd("bond", "delete\t" + bond_mode + "\t" + name), "Deleted " + name);
+    bond_saved_refresh();
+});
+
+fill_select("cov-template-list", "", "");
+grove::Element: template_list = by("cov-template-list");
+auto: ion_rows = tool("ions\t\t").split("\n");
+for (long int: i = 0l; i < ion_rows.size(); i += 1l) {
+    auto: f = ion_rows[i].split("\t");
+    if (f.size() >= 2l) then {
+        add_option(template_list, f[0], f[1] + "   " + f[0]);
+    }
+}
+auto: compound_rows = tool("compounds\t").split("\n");
+for (long int: i = 0l; i < compound_rows.size(); i += 1l) {
+    auto: f = compound_rows[i].split("\t");
+    if (f.size() >= 4l && f[3] == "1") then {
+        add_option(template_list, f[0], f[1] + "   " + f[0]);
+    }
+}
+
+fill_select("ions-category", "all\tAll groups\n" + tool("ion_categories"), "all");
+by("ions-search").on("input", [](grove::Event&: e) -> void {
+    by("ions-search").set_value_string(e.target().value_string());
+    ions_fill_list();
+});
+on_change("ions-search", []() -> void { ions_fill_list(); });
+on_change("ions-category", []() -> void { ions_fill_list(); });
+on_click("ions-2d", []() -> void {
+    cmd("structure", "view\t2d");
+    seg_on("ions-2d,ions-3d", "ions-2d");
+});
+on_click("ions-3d", []() -> void {
+    cmd("structure", "view\t3d");
+    seg_on("ions-2d,ions-3d", "ions-3d");
+});
+on_change("ions-spin", []() -> void { cmd("structure", "spin\t" + b01(by("ions-spin").value_bool())); });
+on_click("ions-sandbox", []() -> void {
+    string: s = cmd("structure", "smiles");
+    if (field(s, 0l).empty()) then {
+        return;
+    }
+    cmd("bond", "load_smiles\t" + s);
+    bond_set_mode("covalent");
+    by("chem-bonding").show_page();
+});
+on_click("name-go", []() -> void { fill_panel("name-out", toolpanel("name\t" + by("name-input").value_string())); });
+on_change("name-input", []() -> void { fill_panel("name-out", toolpanel("name\t" + by("name-input").value_string())); });
+on_click("combine-go", []() -> void { fill_panel("combine-out", toolpanel("combine\t" + by("combine-cation").value_string() + "\t" + by("combine-anion").value_string())); });
+
+on_click("pred-go", []() -> void {
+    fill_panel("pred-out", toolpanel("predict\t" + by("pred-left").value_string() + "\t" + by("rx-t").value_float().to_string() + "\t" + by("rx-t-unit").value_string()));
+});
+on_change("pred-left", []() -> void {
+    fill_panel("pred-out", toolpanel("predict\t" + by("pred-left").value_string() + "\t" + by("rx-t").value_float().to_string() + "\t" + by("rx-t-unit").value_string()));
+});
+grove::ElementList: examples = grove::query_all(".pred-example");
+for (long int: i = 0l; i < examples.size(); i += 1l) {
+    examples.at(i).on("click", [](grove::Event&: e) -> void {
+        by("pred-left").set_value_string(e.target().get_attribute("value"));
+        fill_panel("pred-out", toolpanel("predict\t" + by("pred-left").value_string() + "\t" + by("rx-t").value_float().to_string() + "\t" + by("rx-t-unit").value_string()));
+    });
+}
+on_click("pred-to-balance", []() -> void {
+    string: sides = tool("last_prediction_sides");
+    if (sides.empty()) then {
+        return;
+    }
+    by("bal-left").set_value_string(field(sides, 0l));
+    by("bal-arrow").set_value_string(field(sides, 1l));
+    by("bal-right").set_value_string(field(sides, 2l));
+    fill_panel("bal-out", toolpanel("balance\t" + field(sides, 0l) + "\t" + field(sides, 1l) + "\t" + field(sides, 2l) + "\t" + by("rx-t").value_float().to_string() + "\t" + by("rx-t-unit").value_string()));
+});
+on_click("pred-to-stoich", []() -> void {
+    string: eq = tool("last_prediction");
+    if (!eq.empty()) then {
+        st_load(eq);
+    }
+});
+on_click("bal-go", []() -> void {
+    fill_panel("bal-out", toolpanel("balance\t" + by("bal-left").value_string() + "\t" + by("bal-arrow").value_string() + "\t" + by("bal-right").value_string() + "\t" + by("rx-t").value_float().to_string() + "\t" + by("rx-t-unit").value_string()));
+    string: eq = tool("last_balanced");
+    if (!eq.empty()) then {
+        st_load(eq);
+    }
+});
+on_click("st-load", []() -> void { st_load(by("st-equation").value_string()); });
+on_click("st-go", []() -> void { st_solve(); });
+
+fill_select("sv-category", "all\tAll topics\n" + tool("equation_categories"), "all");
+on_change("sv-category", []() -> void { sv_fill_equations(); });
+on_change("sv-equation", []() -> void { sv_load_equation(); });
+on_click("sv-go", []() -> void { sv_solve(); });
+fill_select("cv-dim", tool("dimensions"), "temperature");
+fill_select("cv-from", tool("unit_list\ttemperature"), "°C");
+fill_select("cv-to", tool("unit_list\ttemperature"), "°F");
+on_change("cv-dim", []() -> void { cv_fill_units(); });
+on_change("cv-value", []() -> void { cv_convert(); });
+on_change("cv-from", []() -> void { cv_convert(); });
+on_change("cv-to", []() -> void { cv_convert(); });
+on_click("pc-go", []() -> void { fill_panel("pc-out", toolpanel("percent\t" + by("pc-formula").value_string())); });
+on_click("ef-go", []() -> void { fill_panel("ef-out", toolpanel("empirical\t" + by("ef-masses").value_string() + "\t" + by("ef-molar").value_string())); });
+
+on_click("ph-go", []() -> void {
+    cmd("phase", "substance\t" + by("ph-substance").value_string());
+    phase_send_point();
+    phase_refresh(true);
+});
+on_change("ph-substance", []() -> void {
+    cmd("phase", "substance\t" + by("ph-substance").value_string());
+    phase_send_point();
+    phase_refresh(true);
+});
+on_click("ph-refresh", []() -> void { phase_saved_refresh(); });
+on_click("ph-use-saved", []() -> void {
+    auto: parts = by("ph-saved").value_string().split("|");
+    if (parts.size() < 2l) then {
+        return;
+    }
+    cmd("phase", "use_saved\t" + parts[0] + "\t" + parts[1]);
+    phase_refresh(true);
+});
+on_change("ph-element", []() -> void {
+    string: v = by("ph-element").value_string();
+    if (!v.empty()) then {
+        cmd("phase", "element\t" + v);
+        phase_refresh(true);
+    }
+});
+on_click("ph-2d", []() -> void {
+    cmd("phase", "view\t2d");
+    seg_on("ph-2d,ph-3d", "ph-2d");
+});
+on_click("ph-3d", []() -> void {
+    cmd("phase", "view\t3d");
+    seg_on("ph-2d,ph-3d", "ph-3d");
+});
+on_change("ph-t", []() -> void { phase_send_point(); });
+on_change("ph-p", []() -> void { phase_send_point(); });
+on_change("ph-t-unit", []() -> void { phase_send_point(); });
+on_change("ph-p-unit", []() -> void { phase_send_point(); });
+on_click("ph-reset-props", []() -> void {
+    cmd("phase", "reset_props");
+    phase_refresh(true);
+});
+
+on_change("orb-element", []() -> void {
+    cmd("orbital", "element\t" + by("orb-element").value_string());
+    orb_refresh();
+});
+on_change("orb-charge", []() -> void {
+    cmd("orbital", "charge\t" + by("orb-charge").value_integer().to_string());
+    orb_refresh();
+});
+on_change("orb-model", []() -> void {
+    cmd("orbital", "model\t" + by("orb-model").value_string());
+    orb_refresh();
+});
+on_change("orb-show", []() -> void { cmd("orbital", "show\t" + by("orb-show").value_string()); });
+on_change("orb-total", []() -> void { cmd("orbital", "total\t" + b01(by("orb-total").value_bool())); });
+on_change("orb-cumulative", []() -> void { cmd("orbital", "cumulative\t" + b01(by("orb-cumulative").value_bool())); });
+on_change("orb-rmax", []() -> void {
+    cmd("orbital", "rmax\t" + by("orb-rmax").value_float().to_string() + "\t" + by("orb-rmax-unit").value_string());
+    orb_refresh();
+});
+on_click("orb-rmax-auto", []() -> void {
+    cmd("orbital", "rmax\tauto");
+    orb_refresh();
+});
+
+on_change("cl-element", []() -> void {
+    by("cl-charge").set_value_integer(0l);
+    cmd("cloud", "element\t" + by("cl-element").value_string());
+    cloud_refresh(true);
+});
+on_change("cl-charge", []() -> void {
+    cmd("cloud", "charge\t" + by("cl-charge").value_integer().to_string());
+    cloud_refresh(true);
+});
+on_change("cl-orbital", []() -> void {
+    cmd("cloud", "orbital\t" + by("cl-orbital").value_string());
+    cloud_refresh(false);
+});
+on_click("cl-2d", []() -> void {
+    cmd("cloud", "view\t2d");
+    seg_on("cl-2d,cl-3d", "cl-2d");
+});
+on_click("cl-3d", []() -> void {
+    cmd("cloud", "view\t3d");
+    seg_on("cl-2d,cl-3d", "cl-3d");
+});
+on_change("cl-plane", []() -> void { cmd("cloud", "plane\t" + by("cl-plane").value_string()); });
+on_change("cl-points", []() -> void { cmd("cloud", "points\t" + by("cl-points").value_float().to_string()); });
+on_change("cl-model", []() -> void {
+    cmd("cloud", "model\t" + by("cl-model").value_string());
+    cloud_refresh(false);
+});
+on_change("cl-signed", []() -> void { cmd("cloud", "signed\t" + b01(by("cl-signed").value_bool())); });
+on_change("cl-spin", []() -> void { cmd("cloud", "spin\t" + b01(by("cl-spin").value_bool())); });
+
+on_change("el-table", []() -> void { element_refresh(); });
+on_change("el-charge", []() -> void { element_refresh(); });
+on_change("el-style", []() -> void { cmd("element", "style\t" + by("el-style").value_string()); });
+
+grove::set_interval(200.0, []() -> void {
+    if (!by("chemistry").is_current()) then {
+        return;
+    }
+    if (by("chem-bonding").is_current()) then {
+        string: v = cmd("bond", "version");
+        if (v != bond_version) then {
+            bond_version = v;
+            bond_refresh();
+        }
+    }
+    if (by("chem-phase").is_current()) then {
+        string: v = cmd("phase", "version");
+        if (v != phase_version) then {
+            phase_version = v;
+            string: pv = cmd("phase", "point_values\t" + by("ph-t-unit").value_string() + "\t" + by("ph-p-unit").value_string());
+            by("ph-t").set_value_float(std::io::parse_float<short float>(field(pv, 0l)));
+            by("ph-p").set_value_float(std::io::parse_float<short float>(field(pv, 1l)));
+            fill_panel("ph-readouts", panel("phase", "readouts"));
+        }
+    }
+});
+
+metal_build_sliders();
+bond_send_tp();
+bond_saved_refresh();
+bond_refresh();
+ions_fill_list();
+ions_show("carbonate");
+st_load("2 H2 + O2 -> 2 H2O");
+sv_fill_equations();
+cv_fill_units();
+phase_saved_refresh();
+phase_send_point();
+phase_refresh(true);
+orb_refresh();
+cloud_refresh(true);
+element_refresh();
+units_build();

@@ -1,0 +1,51 @@
+<!grove>
+<grove>
+    <head>
+        <title>Phase diagrams</title>
+    </head>
+    <body>
+        <row class="chem-workspace">
+            <column class="chem-side scroll">
+                <h3 class="side-title">Substance</h3>
+                <row class="line">
+                    <input_string id="ph-substance" class="grow" value="water" placeholder="water, CO2, ethanol, a SMILES string" />
+                    <button id="ph-go" class="primary small-btn">Plot</button>
+                </row>
+                <row class="line">
+                    <input_select id="ph-saved" class="grow" placeholder="Something you saved in the sandbox"><option value="">&#8212;</option></input_select>
+                    <button id="ph-use-saved" class="ghost">Use</button>
+                    <button id="ph-refresh" class="ghost" title="Look for new saves">&#8635;</button>
+                </row>
+                <text class="muted">Or pick an element</text>
+                <input_element id="ph-element" deselect />
+                <row class="seg">
+                    <button id="ph-2d" class="segbtn on">2D: P vs T</button>
+                    <button id="ph-3d" class="segbtn">3D: P, v, T</button>
+                </row>
+                <h3 class="side-title">State point</h3>
+                <row class="line">
+                    <text class="label-w">T</text>
+                    <input_float id="ph-t" class="grow" value="25" />
+                    <input_select id="ph-t-unit" class="unit-select" dimension="temperature" value="&#176;C"><option>&#176;C</option></input_select>
+                </row>
+                <row class="line">
+                    <text class="label-w">P</text>
+                    <input_float id="ph-p" class="grow" value="1" />
+                    <input_select id="ph-p-unit" class="unit-select" dimension="pressure" value="atm"><option>atm</option></input_select>
+                </row>
+                <text class="hint">Click or drag on the 2D diagram to move the state point.</text>
+                <h3 class="side-title">Properties (edit to make your own)</h3>
+                <column id="ph-props" class="params"></column>
+                <row class="line">
+                    <button id="ph-reset-props" class="ghost">Back to the data</button>
+                </row>
+            </column>
+            <column class="chem-stage">
+                <canvas id="chem-phase-view" />
+            </column>
+            <column class="chem-info scroll">
+                <column id="ph-readouts" class="panel"></column>
+            </column>
+        </row>
+    </body>
+</grove>

@@ -1,0 +1,46 @@
+<!grove>
+<grove>
+    <head>
+        <title>Radial probability</title>
+    </head>
+    <body>
+        <row class="chem-workspace">
+            <column class="chem-side scroll">
+                <h3 class="side-title">Element</h3>
+                <input_element id="orb-element" value="Na" />
+                <row class="line">
+                    <text class="muted">Ion charge</text>
+                    <input_integer id="orb-charge" class="small" value="0" min="-3" max="8" />
+                </row>
+                <row class="line">
+                    <text class="muted">Model</text>
+                    <input_select id="orb-model" class="grow" value="hydrogenic">
+                        <option value="hydrogenic">Hydrogen-like + Slater Zeff</option>
+                        <option value="slater">Slater-type orbitals</option>
+                    </input_select>
+                </row>
+                <row class="line">
+                    <text class="muted">Show</text>
+                    <input_select id="orb-show" class="grow" value="all"><option value="all">all subshells</option></input_select>
+                </row>
+                <column class="checks">
+                    <input_bool id="orb-total" checked>Total for the atom</input_bool>
+                    <input_bool id="orb-cumulative">Probability inside r (cumulative)</input_bool>
+                </column>
+                <row class="line">
+                    <text class="muted">r up to</text>
+                    <input_float id="orb-rmax" class="small" value="0" />
+                    <input_select id="orb-rmax-unit" class="unit-select" dimension="length" value="pm"><option>pm</option></input_select>
+                    <button id="orb-rmax-auto" class="ghost">Auto</button>
+                </row>
+                <text class="hint">P(r) = r&#178;R(r)&#178; is the chance of finding an electron in a thin shell at distance r from the nucleus. Inner shells sit close in; the outermost peak sets the atom's size.</text>
+            </column>
+            <column class="chem-stage">
+                <canvas id="chem-orbital-view" />
+            </column>
+            <column class="chem-info scroll">
+                <column id="orb-readouts" class="panel"></column>
+            </column>
+        </row>
+    </body>
+</grove>

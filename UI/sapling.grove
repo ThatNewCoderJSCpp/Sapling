@@ -3,36 +3,27 @@
     <head>
         <title>Sapling</title>
         <style src="sapling.bark"></style>
+        <style src="chemistry.bark"></style>
         <script lang="walnut" src="sapling.wal"></script>
+        <script lang="walnut" src="chemistry.wal"></script>
     </head>
     <body id="app" title="Sapling" app-id="sapling">
-        <page id="home" current>
+        <row class="appbar">
+            <text class="brand">Sapling</text>
+            <button class="section" to="sandbox">Physics</button>
+            <button class="section" to="chemistry">Chemistry</button>
+            <div class="grow"></div>
+            <text id="version" class="muted"></text>
+        </row>
+        <page id="sandbox" current>
             <row class="topbar">
-                <text class="brand">Sapling</text>
-                <text class="tagline">physics simulations and sandboxes</text>
-                <div class="grow"></div>
-                <text id="version" class="muted"></text>
-            </row>
-            <column class="scroll">
-                <column class="home-inner">
-                    <h2 class="section-title">Simulations</h2>
-                    <row id="section-tabs" class="tabs"></row>
-                    <p id="section-about" class="muted"></p>
-                    <row id="sim-cards" class="cards"></row>
-                </column>
-            </column>
-        </page>
-
-        <page id="sim">
-            <row class="topbar">
-                <button id="go-home" class="ghost">&#8592; Simulations</button>
-                <text id="sim-title" class="brand small"></text>
+                <text class="tagline">physics sandbox</text>
                 <div class="grow"></div>
                 <button id="play" class="primary">Pause</button>
                 <button id="step" class="ghost" title="Advance one frame">Step</button>
                 <button id="reset" class="ghost">Reset</button>
                 <text class="muted">speed</text>
-                <input_select id="speed" class="speed">
+                <input_select id="speed" class="speed" value="1">
                     <option value="0.1">0.1&#215;</option>
                     <option value="0.25">0.25&#215;</option>
                     <option value="0.5">0.5&#215;</option>
@@ -44,17 +35,37 @@
             </row>
             <row id="workspace">
                 <column id="side" class="scroll">
-                    <p id="sim-about" class="about"></p>
                     <h3 class="side-title">Settings</h3>
                     <column id="params" class="params"></column>
                     <h3 class="side-title">Readouts</h3>
                     <column id="readouts" class="readouts"></column>
-                    <p id="sim-note" class="muted note"></p>
                 </column>
                 <column id="stage">
                     <canvas id="view" />
                 </column>
             </row>
+        </page>
+        <page id="chemistry">
+            <row class="subtabs">
+                <button class="subtab" to="chem-bonding">Bonding sandbox</button>
+                <button class="subtab" to="chem-ions">Ions &amp; names</button>
+                <button class="subtab" to="chem-reactions">Reactions</button>
+                <button class="subtab" to="chem-solvers">Solvers</button>
+                <button class="subtab" to="chem-phase">Phase diagrams</button>
+                <button class="subtab" to="chem-orbitals">Radial probability</button>
+                <button class="subtab" to="chem-cloud">Electron clouds</button>
+                <button class="subtab" to="chem-elements">Elements</button>
+                <button class="subtab" to="chem-units">Units</button>
+            </row>
+            <page id="chem-bonding" src="chemistry/bonding.grove" current />
+            <page id="chem-ions" src="chemistry/ions.grove" />
+            <page id="chem-reactions" src="chemistry/reactions.grove" />
+            <page id="chem-solvers" src="chemistry/solvers.grove" />
+            <page id="chem-phase" src="chemistry/phase.grove" />
+            <page id="chem-orbitals" src="chemistry/orbitals.grove" />
+            <page id="chem-cloud" src="chemistry/cloud.grove" />
+            <page id="chem-elements" src="chemistry/elements.grove" />
+            <page id="chem-units" src="chemistry/units.grove" />
         </page>
     </body>
 </grove>

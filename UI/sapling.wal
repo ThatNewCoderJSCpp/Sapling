@@ -2,18 +2,12 @@ import module.grove
 import module.strings
 import module.io
 
-string: current_section = "mechanics";
-string: last_page = "home";
 bool: playing = true;
 
 function call(const string&: name, const string&: arg) -> string;
 function el(const string&: tag, const string&: cls, const string&: label) -> grove::Element;
 function clear(grove::Element&: e) -> void;
 function tab2(const string&: a, const string&: b) -> string;
-function show_home() -> void;
-function build_tabs() -> void;
-function build_cards() -> void;
-function open_sim(const string&: id) -> void;
 function build_params() -> void;
 function update_readouts() -> void;
 function set_playing(bool: on) -> void;
@@ -42,73 +36,6 @@ function clear(grove::Element&: e) -> void {
 function tab2(const string&: a, const string&: b) -> string {
     return a + "\t" + b;
 } end function tab2
-
-function show_home() -> void {
-    build_tabs();
-    build_cards();
-    last_page = "home";
-    grove::get_by_id("home").show_page();
-} end function show_home
-
-function build_tabs() -> void {
-    grove::Element: tabs = grove::get_by_id("section-tabs");
-    clear(tabs);
-    auto: rows = call("sections", "").split("\n");
-    for (long int: i = 0l; i < rows.size(); i += 1l) {
-        auto: f = rows[i].split("\t");
-        if (f.size() < 3l) then {
-            continue;
-        }
-        string: id = f[0];
-        grove::Element: t = el("div", "tab", f[1]);
-        if (id == current_section) then {
-            t.add_class("on");
-            grove::get_by_id("section-about").set_inner_text(f[2]);
-        }
-        t.on("click", [id](grove::Event&: e) -> void {
-            current_section = id;
-            build_tabs();
-            build_cards();
-        });
-        tabs.append_child(t);
-    }
-} end function build_tabs
-
-function build_cards() -> void {
-    grove::Element: cards = grove::get_by_id("sim-cards");
-    clear(cards);
-    auto: rows = call("simulations", current_section).split("\n");
-    for (long int: i = 0l; i < rows.size(); i += 1l) {
-        auto: f = rows[i].split("\t");
-        if (f.size() < 3l) then {
-            continue;
-        }
-        string: id = f[0];
-        grove::Element: c = el("column", "card", "");
-        c.append_child(el("p", "card-title", f[1]));
-        c.append_child(el("p", "card-text", f[2]));
-        c.on("click", [id](grove::Event&: e) -> void {
-            open_sim(id);
-        });
-        cards.append_child(c);
-    }
-} end function build_cards
-
-function open_sim(const string&: id) -> void {
-    auto: f = call("open", id).split("\t");
-    if (f.size() < 3l) then {
-        return;
-    }
-    grove::get_by_id("sim-title").set_inner_text(f[0]);
-    grove::get_by_id("sim-about").set_inner_text(f[1]);
-    grove::get_by_id("sim-note").set_inner_text(f[2]);
-    grove::get_by_id("speed").set_value_string("1");
-    set_playing(true);
-    build_params();
-    update_readouts();
-    last_page = "sim";
-    grove::get_by_id("sim").show_page();
-} end function open_sim
 
 function build_params() -> void {
     grove::Element: box = grove::get_by_id("params");
@@ -192,10 +119,6 @@ function set_playing(bool: on) -> void {
     }
 } end function set_playing
 
-grove::get_by_id("go-home").on("click", [](grove::Event&: e) -> void {
-    call("close", "");
-    show_home();
-});
 grove::get_by_id("play").on("click", [](grove::Event&: e) -> void {
     set_playing(!playing);
 });
@@ -213,10 +136,9 @@ grove::get_by_id("speed").on("change", [](grove::Event&: e) -> void {
 });
 
 grove::set_interval(150.0, []() -> void {
-    if (last_page == "sim") then {
-        update_readouts();
-    }
+    update_readouts();
 });
 
 grove::get_by_id("version").set_inner_text("v" + call("version", ""));
-show_home();
+build_params();
+update_readouts();

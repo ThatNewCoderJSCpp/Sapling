@@ -3,24 +3,10 @@
 
 #include "sapling/canvas.hpp"
 
-#include <memory>
 #include <string>
 #include <vector>
 
 namespace sapling {
-
-struct Section {
-    std::string id;
-    std::string title;
-    std::string description;
-};
-
-struct SimulationInfo {
-    std::string id;
-    std::string section;
-    std::string title;
-    std::string description;
-};
 
 struct Parameter {
     std::string id;
@@ -74,10 +60,6 @@ protected:
     double m_time = 0.0;
 };
 
-const std::vector<Section>& sections();
-const std::vector<SimulationInfo>& simulations();
-const SimulationInfo* find_simulation(const std::string& id);
-std::unique_ptr<Simulation> make_simulation(const std::string& id);
 std::string format_number(double v, int digits = 6);
 
 } // namespace sapling
