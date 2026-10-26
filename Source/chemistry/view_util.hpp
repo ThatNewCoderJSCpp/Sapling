@@ -88,6 +88,10 @@ Color signed_color(double v, const Theme& theme);
 std::optional<fc::Molecule> molecule_from_text(const std::string& text, int* charge, std::string* name, std::string* smiles);
 fc::PhaseProperties phase_from_saved(const std::string& kind, const std::string& json, std::string* error);
 std::optional<fc::IonDescriptor> ion_from_text(const std::string& text, bool cation);
+std::string dielectric_readouts(const fc::DielectricProperties& d);
+std::string mechanics_readouts(const fc::MechanicalProperties& m);
+std::string electron_gas_readouts(const fc::ElectronGasProperties& g, const UnitPrefs& u);
+std::string susceptibility_readouts(const fc::SusceptibilityInfo& s);
 
 } // namespace chem_util
 } // namespace sapling

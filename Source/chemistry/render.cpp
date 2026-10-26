@@ -386,6 +386,18 @@ std::string subscript_digits(const std::string& s) {
     return out;
 }
 
+std::string superscript_digits(const std::string& s) {
+    std::string out;
+    for (char c : s) {
+        if (c >= '0' && c <= '9') out += SUPER[c - '0'];
+        else if (c == '-') out += "\xE2\x81\xBB";
+        else if (c == '+') out += "\xE2\x81\xBA";
+        else if (c == '.') out += "\xC2\xB7";
+        else out += c;
+    }
+    return out;
+}
+
 std::string pretty_formula(const std::string& formula) {
     try {
         const fc::Formula f = fc::Formula::parse(formula);

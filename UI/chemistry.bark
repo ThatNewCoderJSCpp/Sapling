@@ -103,7 +103,11 @@
 }
 
 .element-canvas {
-    height: 300px;
+    height: 460px;
+}
+
+.build-canvas {
+    height: 260px;
 }
 
 .stagebar {
@@ -284,4 +288,25 @@
 .panel-line .panel-note,
 .panel-line .panel-warn {
     flex: 1;
+}
+
+.line .quantity-number {
+    width: 90px;
+}
+
+.line input_quantity, .line input_temperature, .line input_pressure, .line input_time, .line input_volume, .line input_concentration {
+    margin: 0;
+}
+
+#metal-fractions input_slider {
+    width: 120px;
+}
+
+#metal-fractions .label-w {
+    min-width: 28px;
+}
+
+.label-m {
+    width: 66px;
+    color: var(--muted);
 }

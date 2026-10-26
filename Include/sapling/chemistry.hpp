@@ -110,6 +110,7 @@ void draw_plot_axes(Canvas& canvas, const PlotFrame& frame, const Theme& theme, 
 Color element_color(int atomic_number);
 std::string superscript_charge(int charge);
 std::string subscript_digits(const std::string& s);
+std::string superscript_digits(const std::string& s);
 std::string pretty_formula(const std::string& formula);
 
 struct UnitPrefs {
@@ -152,6 +153,8 @@ std::unique_ptr<ChemView> make_phase_view(ChemShared& shared);
 std::unique_ptr<ChemView> make_orbital_view(ChemShared& shared);
 std::unique_ptr<ChemView> make_cloud_view(ChemShared& shared);
 std::unique_ptr<ChemView> make_element_view(ChemShared& shared);
+std::unique_ptr<ChemView> make_kinetics_view(ChemShared& shared);
+std::unique_ptr<ChemView> make_acidbase_view(ChemShared& shared);
 
 std::string chemistry_tool(ChemShared& shared, const std::vector<std::string>& args);
 

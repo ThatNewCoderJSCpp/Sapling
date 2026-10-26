@@ -7,6 +7,8 @@
 #include <cstdio>
 #include <cstdlib>
 #include <sstream>
+#include <string>
+#include <vector>
 
 namespace sapling {
 
@@ -576,7 +578,7 @@ std::string BondingView::to_json() const {
         for (std::size_t i = 0; i < m_cov.atoms.size(); ++i) {
             const SandboxAtom& a = m_cov.atoms[i];
             const fc::Element* e = fc::find_element(a.z);
-            o << (i ? ",\n" : "\n") << "    {\"element\": " << json_quote(e ? e->symbol : "C") << ", \"x\": " << format_number(a.p.x, 8) << ", \"y\": " << format_number(a.p.y, 8) << ", \"z\": " << format_number(a.p.z, 8) << "}";
+            o << (i ? ",\n" : "\n") << "    {\"element\": " << json_quote(e ? e->symbol : "C") << ", \"x\": " << format_number(a.p.x, 8) << ", \"y\": " << format_number(a.p.y, 8) << ", \"z\": " << format_number(a.p.z, 8) << (a.neutrons ? ", \"neutrons\": " + std::to_string(a.neutrons) : std::string()) << "}";
         }
         o << "\n  ],\n  \"bonds\": [";
         for (std::size_t i = 0; i < m_cov.bonds.size(); ++i) {
@@ -613,7 +615,7 @@ bool BondingView::from_json(const std::string& json, std::string* error) {
             for (const JsonValue& a : atoms->array) {
                 const fc::Element* e = fc::find_element(a.string_or("element", "C"));
                 if (!e) continue;
-                s.atoms.push_back(SandboxAtom{ e->atomic_number, Vec3{ a.number_or("x", 0.0), a.number_or("y", 0.0), a.number_or("z", 0.0) } });
+                s.atoms.push_back(SandboxAtom{ e->atomic_number, Vec3{ a.number_or("x", 0.0), a.number_or("y", 0.0), a.number_or("z", 0.0) }, static_cast<int>(a.number_or("neutrons", 0.0)) });
             }
         }
         if (bonds && bonds->type == JsonValue::Array) {
@@ -657,6 +659,46 @@ bool BondingView::from_json(const std::string& json, std::string* error) {
     if (error) *error = "unknown type '" + type + "'";
     return false;
 }
+
+namespace {
+
+std::string central_atom_smiles(const std::string& text) {
+    try {
+        const fc::Formula f = fc::Formula::parse(text);
+        const auto parts = f.composition();
+        if (parts.size() < 2) return std::string();
+        const fc::Element* central = nullptr;
+        int ligands = 0;
+        for (const auto& c : parts) {
+            const int n = static_cast<int>(std::llround(c.second));
+            if (std::fabs(c.second - n) > 1e-9 || n <= 0) return std::string();
+            if (n == 1 && c.first->atomic_number != 1) {
+                const double en = c.first->electronegativity();
+                if (!central || (en == en && (central->electronegativity() != central->electronegativity() || en < central->electronegativity()))) central = c.first;
+            }
+        }
+        if (!central) return std::string();
+        for (const auto& c : parts) {
+            if (c.first != central) ligands += static_cast<int>(std::llround(c.second));
+        }
+        if (ligands < 1 || ligands > 8) return std::string();
+        std::vector<std::string> subs;
+        for (const auto& c : parts) {
+            if (c.first == central) continue;
+            const bool chalcogen = c.first->atomic_number == 8 || c.first->atomic_number == 16;
+            for (int i = 0; i < static_cast<int>(std::llround(c.second)); ++i) subs.push_back(std::string(chalcogen ? "=" : "") + "[" + c.first->symbol + "]");
+        }
+        std::string out = std::string("[") + central->symbol + "]";
+        for (std::size_t i = 0; i + 1 < subs.size(); ++i) out += "(" + subs[i] + ")";
+        out += subs.back();
+        fc::Molecule m = fc::Molecule::from_smiles(out);
+        return m.atom_count() > 0 ? out : std::string();
+    } catch (...) {
+        return std::string();
+    }
+}
+
+} // namespace
 
 std::string BondingView::command(const std::vector<std::string>& a) {
     const std::string c = arg(a, 0);
@@ -755,6 +797,22 @@ std::string BondingView::command(const std::vector<std::string>& a) {
         m_cov.charge = static_cast<int>(num(arg(a, 1), 0.0));
         changed(true);
         return std::to_string(m_cov.charge);
+    }
+    if (c == "neutrons") {
+        if (m_sel_atom < 0 || m_sel_atom >= static_cast<int>(m_cov.atoms.size())) return "error\tselect an atom first";
+        push_undo();
+        m_cov.atoms[static_cast<std::size_t>(m_sel_atom)].neutrons = std::max(-200, std::min(200, static_cast<int>(num(arg(a, 1), 0.0))));
+        changed(true);
+        return std::to_string(m_cov.atoms[static_cast<std::size_t>(m_sel_atom)].neutrons);
+    }
+    if (c == "selected_neutrons") {
+        if (m_sel_atom < 0 || m_sel_atom >= static_cast<int>(m_cov.atoms.size())) return "";
+        return std::to_string(m_cov.atoms[static_cast<std::size_t>(m_sel_atom)].neutrons);
+    }
+    if (c == "frequency") {
+        m_frequency = std::max(1e-3, num(arg(a, 1), 60.0));
+        changed(false);
+        return format_number(m_frequency, 6);
     }
     if (c == "order") {
         if (m_sel_bond >= 0 && m_sel_bond < static_cast<int>(m_cov.bonds.size())) {
@@ -870,7 +928,9 @@ std::string BondingView::command(const std::vector<std::string>& a) {
             } catch (...) {
             }
         }
+        if (smiles.empty()) smiles = central_atom_smiles(text);
         if (smiles.empty()) return "error\tno structure for '" + text + "'";
+        if (name.empty()) name = text;
         push_undo();
         m_mode = BondingMode::Covalent;
         return load_smiles(smiles, charge, name) ? "ok\t" + name : "error\tcouldn't build " + text;

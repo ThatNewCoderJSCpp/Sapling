@@ -47,6 +47,12 @@
                         <input_select id="cov-resonance" class="grow" placeholder="none"><option value="">&#8212;</option></input_select>
                         <button id="cov-resonance-show" class="ghost">Show</button>
                     </row>
+                    <h3 class="side-title">Isotope of the selected atom</h3>
+                    <row class="line">
+                        <text class="muted">Extra neutrons</text>
+                        <input_integer id="cov-neutrons" class="small" value="0" min="-20" max="40" />
+                        <text id="cov-neutrons-note" class="hint grow">Select an atom first</text>
+                    </row>
                     <h3 class="side-title">Start from an ion or molecule</h3>
                     <row class="line">
                         <input_select id="cov-template-list" class="grow" placeholder="Pick a polyatomic ion or compound"><option value="">&#8212;</option></input_select>
@@ -69,10 +75,14 @@
 
                 <column id="ion-controls" class="group hidden">
                     <h3 class="side-title">Metal (cation)</h3>
-                    <input_element id="ion-metal" only-classes="metal metalloid" value="Na" />
+                    <text class="hint">Metals with more than one common ion (Cu, Fe, Sn...) open a row of charges to pick from.</text>
+                    <input_element id="ion-metal" only-classes="metal metalloid" charges="positive" value="Na+" />
                     <h3 class="side-title">Nonmetal (anion)</h3>
-                    <input_element id="ion-nonmetal" only-classes="nonmetal metalloid" disable-groups="18" disable="H" value="Cl" />
-                    <text class="muted">Or type the ions (polyatomic ions and charges work too)</text>
+                    <input_element id="ion-nonmetal" only-classes="nonmetal metalloid" disable-groups="18" disable="H" charges="negative" value="Cl-" />
+                    <text class="muted">Or pick any ion, polyatomic ones included</text>
+                    <input_ion id="ion-cation-pick" charges="positive" monatomic placeholder="Cation" />
+                    <input_ion id="ion-anion-pick" charges="negative" monatomic placeholder="Anion" />
+                    <text class="muted">Or type them (charges work too)</text>
                     <row class="line">
                         <input_string id="ion-cation" class="grow" placeholder="Fe3+, NH4+, Hg2 2+" />
                         <input_string id="ion-anion" class="grow" placeholder="SO4 2-, nitrate" />
@@ -83,7 +93,7 @@
                 <column id="metal-controls" class="group hidden">
                     <h3 class="side-title">Metals (pick up to 4)</h3>
                     <input_element id="metal-elements" only-classes="metal metalloid" multiple max-selected="4" value="Cu Zn" />
-                    <text class="muted">Atom percent of each</text>
+                    <text class="muted">Atom percent of each (the others adjust so they add to 100)</text>
                     <column id="metal-fractions" class="params"></column>
                     <row class="line wrap">
                         <button id="metal-preset-brass" class="ghost">Brass</button>
@@ -109,6 +119,11 @@
                         <input_bool id="opt-electron_sea" checked>Electron sea (metals)</input_bool>
                         <input_bool id="opt-field">Electric field (metals)</input_bool>
                     </column>
+                    <row class="line">
+                        <text class="muted">AC frequency</text>
+                        <input_quantity id="bond-freq" class="grow" dimension="frequency" unit="Hz" value="60" slider log min="1" max="1e9" />
+                    </row>
+                    <text class="hint">Used for the skin depth and induction readouts.</text>
                 </column>
 
                 <column class="group">
@@ -116,14 +131,11 @@
                     <h3 class="side-title">Temperature and pressure</h3>
                     <row class="line">
                         <text class="label-w">T</text>
-                        <input_float id="bond-t" class="grow" value="298.15" />
-                        <input_select id="bond-t-unit" class="unit-select" dimension="temperature" value="K"><option>K</option></input_select>
+                        <input_temperature id="bond-t" class="grow" value="298.15" unit="K" slider min="1" max="6000" step="1" />
                     </row>
-                    <input_slider id="bond-t-slider" min="1" max="6000" step="1" value="298" />
                     <row class="line">
                         <text class="label-w">P</text>
-                        <input_float id="bond-p" class="grow" value="1" />
-                        <input_select id="bond-p-unit" class="unit-select" dimension="pressure" value="atm"><option>atm</option></input_select>
+                        <input_pressure id="bond-p" class="grow" value="1" unit="atm" slider log min="0.001" max="10000" />
                     </row>
                     <text class="hint">Hotter or lower pressure breaks more bonds (&#916;G = &#916;H &#8722; T&#916;S); lattices melt and boil past their melting and boiling points.</text>
                 </column>

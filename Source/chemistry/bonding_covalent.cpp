@@ -1,4 +1,5 @@
 #include "bonding_view.hpp"
+#include "view_util.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -155,6 +156,13 @@ Vec3 dipole_vector(const fc::Molecule& m, const std::vector<double>* lengths = n
 
 } // namespace
 
+int sandbox_mass_number(const SandboxAtom& a) {
+    if (a.neutrons == 0) return 0;
+    const fc::Element& e = fc::element(a.z);
+    const int base = e.most_abundant_mass_number ? e.most_abundant_mass_number : e.reference_mass_number;
+    return std::max(a.z, base + a.neutrons);
+}
+
 void BondingView::ensure_analysis() {
     if (!m_analysis_dirty) return;
     m_analysis_dirty = false;
@@ -166,7 +174,7 @@ void BondingView::ensure_analysis() {
     try {
         fc::Molecule m;
         for (const SandboxAtom& a : m_cov.atoms) {
-            const std::size_t i = m.add_atom(el(a.z));
+            const std::size_t i = m.add_atom(el(a.z), 0, sandbox_mass_number(a));
             m.set_position(i, a.p.x, a.p.y, a.p.z);
         }
         for (const SandboxBond& b : m_cov.bonds) {
@@ -576,6 +584,57 @@ std::string BondingView::covalent_readouts() {
     o << "Dipole (VSEPR shape)\t" << fixed(m_analysis.mu_shape, 2) << " D\n";
     if (m_3d) o << "Dipole (as drawn)\t" << fixed(m_analysis.mu_drawn, 2) << " D\n";
 
+    try {
+        double cp = fc::NO_VALUE;
+        std::string source;
+        if (const fc::Substance* sub = fc::find_substance(formula)) {
+            cp = sub->heat_capacity(fc::Phase::Gas, m_temperature);
+            if (cp == cp && cp > 0) source = "data";
+        }
+        if (!(cp == cp && cp > 0) && m.atom_count() >= 2) {
+            const fc::JobackEstimate j = fc::joback(m);
+            if (j.ok) {
+                cp = j.ideal_gas_cp(m_temperature);
+                source = "Joback estimate";
+            }
+        }
+        if (!(cp == cp && cp > 0)) {
+            const int atoms = static_cast<int>(m.atom_count());
+            cp = atoms == 1 ? 2.5 * 8.314462618 : (atoms == 2 ? 3.5 * 8.314462618 : 4.0 * 8.314462618 + (3 * atoms - 6) * 0.5 * 8.314462618);
+            source = "equipartition estimate";
+        }
+        const double cv = cp - 8.314462618;
+        o << "#Heat capacity (gas, " << m_shared.units.format(m_temperature, "temperature", 4) << ")\n";
+        o << "C\xE2\x82\x9A\t" << m_shared.units.format(cp, "molar entropy", 4) << " (" << source << ")\n";
+        o << "C\xE1\xB5\xA5\t" << m_shared.units.format(cv, "molar entropy", 4) << "\n";
+        o << "Specific heat\t" << format_number(cp / m.molar_mass(), 4) << " J/(g\xC2\xB7K)\n";
+        o << "\xCE\xB3 = C\xE2\x82\x9A/C\xE1\xB5\xA5\t" << format_number(cp / cv, 4) << "\n";
+        o << "Speed of sound\t" << format_number(std::sqrt(cp / cv * 8.314462618 * m_temperature / (m.molar_mass() / 1000.0)), 4) << " m/s\n";
+        o << "Molecular gases are electrical insulators: every electron is held in a bond or a lone pair.\n";
+    } catch (...) {
+    }
+    if (m_cov.charge == 0) {
+        try {
+            const std::string dname = !known.empty() ? known.front().name : systematic;
+            fc::Phase phase = fc::Phase::Gas;
+            double density = 1000.0;
+            const fc::Substance* sub = fc::find_substance(formula);
+            if (!sub && !dname.empty()) sub = fc::find_substance(dname);
+            if (sub) {
+                if (chem_util::finite(sub->boiling_point) && m_temperature < sub->boiling_point) phase = fc::Phase::Liquid;
+                if (chem_util::finite(sub->critical_volume) && sub->critical_volume > 0) density = m.molar_mass() / 1000.0 / (0.38 * sub->critical_volume);
+            } else if (m.molar_mass() > 40.0) {
+                phase = fc::Phase::Liquid;
+            }
+            const double mu = sub && chem_util::finite(sub->dipole_moment) ? sub->dipole_moment : m_analysis.mu_shape;
+            const fc::DielectricProperties d = fc::molecular_dielectric(dname, f, mu, phase, density, m_temperature, m_pressure);
+            std::string text = chem_util::dielectric_readouts(d);
+            const std::string head = "#Permittivity and light\n";
+            if (text.compare(0, head.size(), head) == 0) text = "#Permittivity and light (" + std::string(phase == fc::Phase::Gas ? "as a gas" : "as a liquid") + ")\n" + text.substr(head.size());
+            o << text;
+        } catch (...) {
+        }
+    }
     o << "#Energy at " << format_t() << "\n";
     double total = 0.0;
     for (const BondReport& r : m_analysis.bonds) total += r.energy == r.energy ? r.energy : 0.0;
@@ -660,7 +719,13 @@ std::string BondingView::bond_readout(int index) {
     if (r.en_difference > 0.05) o << "\xCE\xB4\xE2\x88\x92 end\t" << (xa > xb ? ea.symbol : eb.symbol) << "\n";
     try {
         const double k = fc::gordy_force_constant(ea, eb, r.table_length, r.avg_order);
-        const double mu = fc::reduced_mass(ea.atomic_weight, eb.atomic_weight);
+        const auto atom_mass = [](const SandboxAtom& at) {
+            const fc::Element& e = fc::element(at.z);
+            if (at.neutrons == 0) return e.atomic_weight;
+            const fc::Isotope* iso = e.isotope(sandbox_mass_number(at));
+            return iso && iso->mass == iso->mass ? iso->mass : static_cast<double>(sandbox_mass_number(at));
+        };
+        const double mu = fc::reduced_mass(atom_mass(m_cov.atoms[static_cast<std::size_t>(b.a)]), atom_mass(m_cov.atoms[static_cast<std::size_t>(b.b)]));
         const double freq = fc::vibrational_frequency(k, mu);
         if (k == k && freq == freq && freq > 0.0) {
             o << "#Vibration\n";
@@ -678,6 +743,15 @@ std::string BondingView::atom_readout(int index) {
     const fc::Element& e = el(a.z);
     o << "#Atom " << atom_label(m_cov, index) << " \xC2\xB7 " << e.name << "\n";
     o << "Atomic number\t" << static_cast<int>(e.atomic_number) << "\n";
+    {
+        const int base = e.most_abundant_mass_number ? e.most_abundant_mass_number : e.reference_mass_number;
+        const int mass_number = a.neutrons ? sandbox_mass_number(a) : base;
+        const fc::Isotope* iso = e.isotope(mass_number);
+        o << "Isotope\t" << superscript_digits(std::to_string(mass_number)) << e.symbol << (a.z == 1 && mass_number == 2 ? " (deuterium)" : a.z == 1 && mass_number == 3 ? " (tritium)" : "") << (a.neutrons ? " (" + std::string(a.neutrons > 0 ? "+" : "") + std::to_string(a.neutrons) + " neutrons)" : std::string()) << "\n";
+        if (iso && iso->mass == iso->mass) o << "Atom mass\t" << format_number(iso->mass, 7) << " u" << (iso->is_stable ? "" : " (radioactive)") << "\n";
+        else if (a.neutrons) o << "!no such isotope is known\n";
+        o << "Heavier isotopes vibrate more slowly (see a bond's stretch frequency), which is how D\xE2\x82\x82O differs from H\xE2\x82\x82O.\n";
+    }
     o << "Electronegativity\t" << (e.electronegativity_pauling == e.electronegativity_pauling ? fixed(e.electronegativity_pauling, 2) : std::string("n/a")) << "\n";
     o << "Valence electrons\t" << e.valence_electrons() << "\n";
     if (m_analysis.ok && static_cast<std::size_t>(index) < m_analysis.lone_pairs.size()) {

@@ -1,0 +1,317 @@
+<!grove>
+<grove>
+    <head>
+        <title>Acids and bases</title>
+    </head>
+    <body>
+        <row class="chem-workspace">
+            <column class="chem-side scroll">
+                <h3 class="side-title">What to work out</h3>
+                <row class="seg wrap">
+                    <button id="ab-mode-mixture" class="segbtn on" title="pH, pOH and every species of any mix">pH of a solution</button>
+                    <button id="ab-mode-titration" class="segbtn" title="Titration curve with equivalence points">Titration</button>
+                    <button id="ab-mode-species" class="segbtn" title="Which form is present at each pH">Species vs pH</button>
+                    <button id="ab-mode-buffer" class="segbtn" title="Henderson-Hasselbalch and buffer capacity">Buffer</button>
+                </row>
+
+                <column id="ab-mixture" class="group">
+                    <row class="seg">
+                        <button id="mx-build" class="segbtn on">Mix amounts</button>
+                        <button id="mx-type" class="segbtn">Type concentrations</button>
+                    </row>
+                    <column id="mx-builder" class="group">
+                        <text class="hint">Add each acid or base as a solution (molarity and volume), by moles or by mass. Everything is mixed into the total volume, so this works for neutralizing, diluting, making buffers or anything else.</text>
+                    <column id="mx-row-0" class="group mixrow">
+                        <row class="line">
+                            <input_select id="mx-role-0" class="grow" value="acid">
+                                <option value="acid">An acid</option>
+                                <option value="base">A base</option>
+                            </input_select>
+                            <input_select id="mx-how-0" class="grow" value="sol">
+                                <option value="sol">as a solution</option>
+                                <option value="mol">by moles</option>
+                                <option value="g">by mass (solid)</option>
+                            </input_select>
+                            <button id="mx-del-0" class="ghost" title="Take this one out">&#215;</button>
+                        </row>
+                        <input_acid id="mx-acid-0" class="" value="acetic acid" />
+                        <input_base id="mx-base-0" class="hidden" value="sodium hydroxide" />
+                        <row id="mx-crow-0" class="line">
+                            <text class="label-m">Molarity</text>
+                            <input_concentration id="mx-c-0" class="grow" value="0.1" unit="M" />
+                        </row>
+                        <row id="mx-vrow-0" class="line">
+                            <text class="label-m">Volume</text>
+                            <input_volume id="mx-v-0" class="grow" value="50" unit="mL" />
+                        </row>
+                        <row id="mx-nrow-0" class="line hidden">
+                            <text class="label-m">Amount</text>
+                            <input_amount id="mx-n-0" class="grow" value="5" unit="mmol" />
+                        </row>
+                        <row id="mx-grow-0" class="line hidden">
+                            <text class="label-m">Mass</text>
+                            <input_mass id="mx-m-0" class="grow" value="1" unit="g" />
+                        </row>
+                    </column>
+                    <column id="mx-row-1" class="group mixrow">
+                        <row class="line">
+                            <input_select id="mx-role-1" class="grow" value="base">
+                                <option value="acid">An acid</option>
+                                <option value="base">A base</option>
+                            </input_select>
+                            <input_select id="mx-how-1" class="grow" value="sol">
+                                <option value="sol">as a solution</option>
+                                <option value="mol">by moles</option>
+                                <option value="g">by mass (solid)</option>
+                            </input_select>
+                            <button id="mx-del-1" class="ghost" title="Take this one out">&#215;</button>
+                        </row>
+                        <input_acid id="mx-acid-1" class="hidden" value="acetic acid" />
+                        <input_base id="mx-base-1" class="" value="sodium hydroxide" />
+                        <row id="mx-crow-1" class="line">
+                            <text class="label-m">Molarity</text>
+                            <input_concentration id="mx-c-1" class="grow" value="0.1" unit="M" />
+                        </row>
+                        <row id="mx-vrow-1" class="line">
+                            <text class="label-m">Volume</text>
+                            <input_volume id="mx-v-1" class="grow" value="25" unit="mL" />
+                        </row>
+                        <row id="mx-nrow-1" class="line hidden">
+                            <text class="label-m">Amount</text>
+                            <input_amount id="mx-n-1" class="grow" value="5" unit="mmol" />
+                        </row>
+                        <row id="mx-grow-1" class="line hidden">
+                            <text class="label-m">Mass</text>
+                            <input_mass id="mx-m-1" class="grow" value="1" unit="g" />
+                        </row>
+                    </column>
+                    <column id="mx-row-2" class="group mixrow hidden">
+                        <row class="line">
+                            <input_select id="mx-role-2" class="grow" value="acid">
+                                <option value="acid">An acid</option>
+                                <option value="base">A base</option>
+                            </input_select>
+                            <input_select id="mx-how-2" class="grow" value="sol">
+                                <option value="sol">as a solution</option>
+                                <option value="mol">by moles</option>
+                                <option value="g">by mass (solid)</option>
+                            </input_select>
+                            <button id="mx-del-2" class="ghost" title="Take this one out">&#215;</button>
+                        </row>
+                        <input_acid id="mx-acid-2" class="" value="acetic acid" />
+                        <input_base id="mx-base-2" class="hidden" value="sodium hydroxide" />
+                        <row id="mx-crow-2" class="line">
+                            <text class="label-m">Molarity</text>
+                            <input_concentration id="mx-c-2" class="grow" value="0.1" unit="M" />
+                        </row>
+                        <row id="mx-vrow-2" class="line">
+                            <text class="label-m">Volume</text>
+                            <input_volume id="mx-v-2" class="grow" value="10" unit="mL" />
+                        </row>
+                        <row id="mx-nrow-2" class="line hidden">
+                            <text class="label-m">Amount</text>
+                            <input_amount id="mx-n-2" class="grow" value="5" unit="mmol" />
+                        </row>
+                        <row id="mx-grow-2" class="line hidden">
+                            <text class="label-m">Mass</text>
+                            <input_mass id="mx-m-2" class="grow" value="1" unit="g" />
+                        </row>
+                    </column>
+                    <column id="mx-row-3" class="group mixrow hidden">
+                        <row class="line">
+                            <input_select id="mx-role-3" class="grow" value="acid">
+                                <option value="acid">An acid</option>
+                                <option value="base">A base</option>
+                            </input_select>
+                            <input_select id="mx-how-3" class="grow" value="sol">
+                                <option value="sol">as a solution</option>
+                                <option value="mol">by moles</option>
+                                <option value="g">by mass (solid)</option>
+                            </input_select>
+                            <button id="mx-del-3" class="ghost" title="Take this one out">&#215;</button>
+                        </row>
+                        <input_acid id="mx-acid-3" class="" value="acetic acid" />
+                        <input_base id="mx-base-3" class="hidden" value="sodium hydroxide" />
+                        <row id="mx-crow-3" class="line">
+                            <text class="label-m">Molarity</text>
+                            <input_concentration id="mx-c-3" class="grow" value="0.1" unit="M" />
+                        </row>
+                        <row id="mx-vrow-3" class="line">
+                            <text class="label-m">Volume</text>
+                            <input_volume id="mx-v-3" class="grow" value="10" unit="mL" />
+                        </row>
+                        <row id="mx-nrow-3" class="line hidden">
+                            <text class="label-m">Amount</text>
+                            <input_amount id="mx-n-3" class="grow" value="5" unit="mmol" />
+                        </row>
+                        <row id="mx-grow-3" class="line hidden">
+                            <text class="label-m">Mass</text>
+                            <input_mass id="mx-m-3" class="grow" value="1" unit="g" />
+                        </row>
+                    </column>
+                    <column id="mx-row-4" class="group mixrow hidden">
+                        <row class="line">
+                            <input_select id="mx-role-4" class="grow" value="acid">
+                                <option value="acid">An acid</option>
+                                <option value="base">A base</option>
+                            </input_select>
+                            <input_select id="mx-how-4" class="grow" value="sol">
+                                <option value="sol">as a solution</option>
+                                <option value="mol">by moles</option>
+                                <option value="g">by mass (solid)</option>
+                            </input_select>
+                            <button id="mx-del-4" class="ghost" title="Take this one out">&#215;</button>
+                        </row>
+                        <input_acid id="mx-acid-4" class="" value="acetic acid" />
+                        <input_base id="mx-base-4" class="hidden" value="sodium hydroxide" />
+                        <row id="mx-crow-4" class="line">
+                            <text class="label-m">Molarity</text>
+                            <input_concentration id="mx-c-4" class="grow" value="0.1" unit="M" />
+                        </row>
+                        <row id="mx-vrow-4" class="line">
+                            <text class="label-m">Volume</text>
+                            <input_volume id="mx-v-4" class="grow" value="10" unit="mL" />
+                        </row>
+                        <row id="mx-nrow-4" class="line hidden">
+                            <text class="label-m">Amount</text>
+                            <input_amount id="mx-n-4" class="grow" value="5" unit="mmol" />
+                        </row>
+                        <row id="mx-grow-4" class="line hidden">
+                            <text class="label-m">Mass</text>
+                            <input_mass id="mx-m-4" class="grow" value="1" unit="g" />
+                        </row>
+                    </column>
+                    <column id="mx-row-5" class="group mixrow hidden">
+                        <row class="line">
+                            <input_select id="mx-role-5" class="grow" value="acid">
+                                <option value="acid">An acid</option>
+                                <option value="base">A base</option>
+                            </input_select>
+                            <input_select id="mx-how-5" class="grow" value="sol">
+                                <option value="sol">as a solution</option>
+                                <option value="mol">by moles</option>
+                                <option value="g">by mass (solid)</option>
+                            </input_select>
+                            <button id="mx-del-5" class="ghost" title="Take this one out">&#215;</button>
+                        </row>
+                        <input_acid id="mx-acid-5" class="" value="acetic acid" />
+                        <input_base id="mx-base-5" class="hidden" value="sodium hydroxide" />
+                        <row id="mx-crow-5" class="line">
+                            <text class="label-m">Molarity</text>
+                            <input_concentration id="mx-c-5" class="grow" value="0.1" unit="M" />
+                        </row>
+                        <row id="mx-vrow-5" class="line">
+                            <text class="label-m">Volume</text>
+                            <input_volume id="mx-v-5" class="grow" value="10" unit="mL" />
+                        </row>
+                        <row id="mx-nrow-5" class="line hidden">
+                            <text class="label-m">Amount</text>
+                            <input_amount id="mx-n-5" class="grow" value="5" unit="mmol" />
+                        </row>
+                        <row id="mx-grow-5" class="line hidden">
+                            <text class="label-m">Mass</text>
+                            <input_mass id="mx-m-5" class="grow" value="1" unit="g" />
+                        </row>
+                    </column>
+                        <row class="line wrap">
+                            <button id="mx-add" class="ghost">+ Add another</button>
+                        </row>
+                        <row class="line">
+                            <text class="label-m">Extra water</text>
+                            <input_volume id="mx-water" class="grow" value="0" unit="mL" />
+                        </row>
+                    </column>
+                    <column id="mx-typed" class="group hidden">
+                        <text class="hint">Name each acid, base or salt and its concentration in M, separated by semicolons: "acetic acid 0.1; sodium acetate 0.05", "HCl 0.01", "NH3 0.1; NH4Cl 0.1".</text>
+                        <input_string id="ab-mix" value="acetic acid 0.1; acetate 0.1" />
+                    </column>
+                    <row class="line">
+                        <text class="label-m">T</text>
+                        <input_temperature id="ab-t" class="grow" value="25" unit="&#176;C" />
+                    </row>
+                    <button id="ab-mix-go" class="primary">Find the pH</button>
+                </column>
+
+                <column id="ab-titration" class="group hidden">
+                    <row class="line">
+                        <text class="label-m">Flask has</text>
+                        <input_select id="ab-flask-kind" class="grow" value="acid">
+                            <option value="acid">an acid (add a base)</option>
+                            <option value="base">a base (add an acid)</option>
+                        </input_select>
+                    </row>
+                    <row class="line">
+                        <text class="label-m">Strengths</text>
+                        <input_select id="ab-combo" class="grow" value="weak-strong">
+                            <option value="strong-strong">strong in flask, strong added</option>
+                            <option value="weak-strong">weak in flask, strong added</option>
+                            <option value="strong-weak">strong in flask, weak added</option>
+                            <option value="weak-weak">weak in flask, weak added</option>
+                            <option value="any">any (show everything)</option>
+                        </input_select>
+                    </row>
+                    <h3 class="side-title">In the flask</h3>
+                    <input_acid id="ab-flask-acid" strength="weak" value="acetic acid" />
+                    <input_base id="ab-flask-base" class="hidden" strength="weak" value="ammonia" />
+                    <row class="line">
+                        <text class="label-m">Molarity</text>
+                        <input_concentration id="ab-ca" class="grow" value="0.1" unit="M" />
+                    </row>
+                    <row class="line">
+                        <text class="label-m">Volume</text>
+                        <input_volume id="ab-va" class="grow" value="25" unit="mL" />
+                    </row>
+                    <h3 class="side-title">Added from the buret</h3>
+                    <input_base id="ab-tit-base" strength="strong" value="sodium hydroxide" />
+                    <input_acid id="ab-tit-acid" class="hidden" strength="strong" value="hydrochloric acid" />
+                    <row class="line">
+                        <text class="label-m">Molarity</text>
+                        <input_concentration id="ab-ct" class="grow" value="0.1" unit="M" />
+                    </row>
+                    <text class="muted">Added so far (drag to titrate)</text>
+                    <input_volume id="ab-vadd" value="0" unit="mL" slider min="0" max="60" step="0.1" />
+                    <row class="line">
+                        <text class="label-m">Plot up to</text>
+                        <input_volume id="ab-vmax" class="grow" value="0" unit="mL" />
+                    </row>
+                    <row class="line">
+                        <text class="label-m">Show in</text>
+                        <input_select id="ab-vunit" class="unit-select grow" dimension="volume" value="mL"><option>mL</option></input_select>
+                    </row>
+                    <text class="hint">Every volume and molarity takes any unit (mL, L, µL, cm³, fl oz...); "Show in" picks the unit for the graph and readouts. Plot up to 0 goes a bit past the last equivalence point. Only real acids and bases are listed, so the pair always makes sense; polyatomic ions like carbonate and phosphate count as bases (as sodium salts).</text>
+                </column>
+
+                <column id="ab-species" class="group hidden">
+                    <h3 class="side-title">Acid or base</h3>
+                    <input_select id="ab-species-acid" placeholder="Acid or base"><option value="">&#8212;</option></input_select>
+                </column>
+
+                <column id="ab-buffer" class="group hidden">
+                    <h3 class="side-title">Weak acid and its conjugate base</h3>
+                    <input_select id="ab-buffer-acid" placeholder="Weak acid"><option value="">&#8212;</option></input_select>
+                    <row class="line">
+                        <text class="label-m">[HA]</text>
+                        <input_concentration id="ab-buf-ca" class="grow" value="0.1" unit="M" />
+                    </row>
+                    <row class="line">
+                        <text class="label-m">[A&#8315;]</text>
+                        <input_concentration id="ab-buf-cb" class="grow" value="0.1" unit="M" />
+                    </row>
+                    <row class="line">
+                        <text class="label-m">Add</text>
+                        <input_concentration id="ab-buf-add" class="grow" value="0" unit="M" />
+                    </row>
+                    <text class="hint">Positive adds strong acid (like HCl), negative adds strong base (like NaOH).</text>
+                </column>
+                <input_bool id="ab-poh">Plot pOH instead of pH</input_bool>
+                <text id="ab-status" class="hint"></text>
+            </column>
+            <column class="chem-stage">
+                <canvas id="chem-acid-view" />
+            </column>
+            <column class="chem-info scroll">
+                <column id="ab-readouts" class="panel"></column>
+            </column>
+        </row>
+    </body>
+</grove>

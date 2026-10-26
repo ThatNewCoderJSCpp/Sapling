@@ -15,8 +15,24 @@
                         <option value="both">Shells and orbital boxes</option>
                         <option value="bohr">Shells (Bohr model)</option>
                         <option value="boxes">Orbital boxes</option>
+                        <option value="nucleus">Just the nucleus</option>
                     </input_select>
                 </row>
+                <row class="line">
+                    <text class="muted">Nucleus</text>
+                    <input_select id="el-nucleus" value="circle">
+                        <option value="circle">One circle with the counts</option>
+                        <option value="2d">Every proton and neutron, flat (2D)</option>
+                        <option value="3d">Every proton and neutron, 3D (drag to turn)</option>
+                    </input_select>
+                </row>
+                <row class="line">
+                    <text class="muted">Extra neutrons</text>
+                    <input_integer id="el-neutrons" class="small" value="0" min="-100" max="100" />
+                    <text class="hint">added to the most common isotope (negative takes some away)</text>
+                </row>
+                <text class="muted">Temperature for the heat and electricity readouts</text>
+                <input_temperature id="el-t" value="298.15" unit="K" slider min="1" max="3000" step="1" />
                 <canvas id="chem-element-view" class="element-canvas" />
             </column>
             <column class="chem-info scroll">

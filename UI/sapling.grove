@@ -51,6 +51,8 @@
                 <button class="subtab" to="chem-ions">Ions &amp; names</button>
                 <button class="subtab" to="chem-reactions">Reactions</button>
                 <button class="subtab" to="chem-solvers">Solvers</button>
+                <button class="subtab" to="chem-kinetics">Kinetics</button>
+                <button class="subtab" to="chem-acids">Acids &amp; bases</button>
                 <button class="subtab" to="chem-phase">Phase diagrams</button>
                 <button class="subtab" to="chem-orbitals">Radial probability</button>
                 <button class="subtab" to="chem-cloud">Electron clouds</button>
@@ -61,6 +63,8 @@
             <page id="chem-ions" src="chemistry/ions.grove" />
             <page id="chem-reactions" src="chemistry/reactions.grove" />
             <page id="chem-solvers" src="chemistry/solvers.grove" />
+            <page id="chem-kinetics" src="chemistry/kinetics.grove" />
+            <page id="chem-acids" src="chemistry/acids.grove" />
             <page id="chem-phase" src="chemistry/phase.grove" />
             <page id="chem-orbitals" src="chemistry/orbitals.grove" />
             <page id="chem-cloud" src="chemistry/cloud.grove" />

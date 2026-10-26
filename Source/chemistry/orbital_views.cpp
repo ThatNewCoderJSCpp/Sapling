@@ -47,7 +47,7 @@ public:
         for (const fc::RadialCurve& c : visible()) {
             for (double v : (m_cumulative ? c.cumulative : c.probability)) ymax = std::max(ymax, v);
         }
-        if (m_total && !m_cumulative) {
+        if (m_total && !m_cumulative && m_show == "all") {
             for (double v : m_total_curve.probability) ymax = std::max(ymax, v);
         }
         if (m_cumulative) ymax = 1.0;
@@ -65,7 +65,7 @@ public:
                 prev = p;
             }
         };
-        if (m_total) plot(m_total_curve, theme.text, 2.6);
+        if (m_total && m_show == "all") plot(m_total_curve, theme.text, 2.6);
         for (const fc::RadialCurve& c : visible()) plot(c, l_color(c.l, c.n, max_n), 2.0);
         const std::vector<fc::RadialCurve> vis = visible();
         if (vis.size() == 1) {
@@ -81,7 +81,7 @@ public:
         }
         double ly = f.y0 + 6.0;
         const double lx = f.x0 + f.w + 16.0;
-        if (m_total) {
+        if (m_total && m_show == "all") {
             canvas.line_px(Vec2{ lx, ly + 6.0 }, Vec2{ lx + 18.0, ly + 6.0 }, theme.text, 2.6);
             canvas.text(Vec2{ lx + 24.0, ly + 10.0 }, "total", 11.0, theme.text);
             ly += 18.0;
@@ -140,6 +140,7 @@ public:
         }
         if (c == "show") {
             m_show = arg(a, 1).empty() ? "all" : arg(a, 1);
+            if (m_auto_r) rebuild();
             return m_show;
         }
         if (c == "total") {
@@ -188,6 +189,34 @@ private:
         try {
             if (m_auto_r) m_rmax = fc::suggested_radial_range_pm(e, m_charge);
             m_curves = fc::atom_radial_distributions(e, m_rmax, 500, model_of(m_model), m_charge);
+            if (m_auto_r && m_show != "all") {
+                const auto find = [&]() -> const fc::RadialCurve* {
+                    for (const fc::RadialCurve& c : m_curves) {
+                        if (c.label == m_show && !c.r_pm.empty()) return &c;
+                    }
+                    return nullptr;
+                };
+                const fc::RadialCurve* c = find();
+                if (c) {
+                    double guess = std::max(c->mean_pm, c->most_probable_pm) * 4.0;
+                    if (!(guess > 0.5)) guess = m_rmax;
+                    m_rmax = guess;
+                    m_curves = fc::atom_radial_distributions(e, m_rmax, 500, model_of(m_model), m_charge);
+                    c = find();
+                    if (c && !c->cumulative.empty() && c->cumulative.back() > 0.0) {
+                        const double full = c->cumulative.back();
+                        double reach = c->r_pm.back();
+                        for (std::size_t i = 0; i < c->cumulative.size() && i < c->r_pm.size(); ++i) {
+                            if (c->cumulative[i] >= 0.9995 * full) {
+                                reach = c->r_pm[i];
+                                break;
+                            }
+                        }
+                        m_rmax = std::max(reach * 1.15, c->most_probable_pm * 2.5);
+                        m_curves = fc::atom_radial_distributions(e, m_rmax, 500, model_of(m_model), m_charge);
+                    }
+                }
+            }
             m_total_curve = fc::total_radial_density(e, m_rmax, 500, model_of(m_model), m_charge);
         } catch (const std::exception& ex) {
             m_error = ex.what();

@@ -1,4 +1,5 @@
 #include "bonding_view.hpp"
+#include "view_util.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -540,6 +541,27 @@ std::string BondingView::ionic_readouts() {
     if (!c.solubility.rule.empty()) o << c.solubility.rule << "\n";
     o << "#At " << format_t() << "\n";
     o << "State\t" << lattice_state() << "\n";
+    try {
+        const fc::TransportProperties t = fc::ionic_transport(c, m_temperature);
+        o << "#Heat and electricity\n";
+        if (finite(t.molar_heat_capacity)) o << "Heat capacity\t" << u.format(t.molar_heat_capacity, "molar entropy", 4) << " per formula unit\n";
+        if (finite(t.specific_heat)) o << "Specific heat\t" << format_number(t.specific_heat / 1000.0, 4) << " J/(g\xC2\xB7K)\n";
+        if (finite(t.dulong_petit)) o << "Dulong\xE2\x80\x93" "Petit limit\t" << u.format(t.dulong_petit, "molar entropy", 4) << " (3R per ion)\n";
+        if (finite(t.debye_temperature)) o << "Debye temperature\t" << u.format(t.debye_temperature, "temperature", 3) << " (estimate)\n";
+        if (finite(t.thermal_conductivity)) o << "Thermal conductivity\t\xE2\x89\x88 " << format_number(t.thermal_conductivity, 3) << " W/(m\xC2\xB7K) (rough)\n";
+        o << "Conducts electricity\t" << fc::to_string(t.kind) << "\n";
+        if (finite(t.band_gap)) o << "Band gap\t\xE2\x89\x88 " << format_number(t.band_gap, 3) << " eV (rough)\n";
+        if (finite(t.resistivity)) o << "Resistivity (molten)\t\xE2\x89\x88 " << format_number(t.resistivity, 3) << " \xCE\xA9\xC2\xB7m\n";
+        o << "Magnetism\t" << fc::to_string(t.magnetic.order) << "\n";
+        for (const std::string& n : t.notes) o << n << "\n";
+    } catch (...) {
+    }
+    try {
+        o << chem_util::dielectric_readouts(fc::ionic_dielectric(c));
+        o << chem_util::mechanics_readouts(fc::ionic_mechanics(c, m_temperature));
+        o << chem_util::susceptibility_readouts(fc::ionic_susceptibility(c, m_temperature));
+    } catch (...) {
+    }
     if (!c.notes.empty()) {
         o << "#Notes\n";
         for (const std::string& n : c.notes) o << n << "\n";
@@ -595,6 +617,43 @@ std::string BondingView::metallic_readouts() {
     if (finite(m.boiling_point)) o << "Boiling point\t" << u.format(m.boiling_point, "temperature", 5) << "\n";
     if (finite(m.cohesive_energy)) o << "Cohesive energy\t" << u.format_kj(m.cohesive_energy, 4) << "\n";
     o << "State at " << u.format(m_temperature, "temperature", 5) << "\t" << lattice_state() << "\n";
+    try {
+        const fc::TransportProperties t = fc::metal_transport(m, m_temperature, m_frequency);
+        o << "#Heat at " << u.format(m_temperature, "temperature", 4) << "\n";
+        if (finite(t.molar_heat_capacity)) o << "Molar heat capacity\t" << u.format(t.molar_heat_capacity, "molar entropy", 4) << "\n";
+        if (finite(t.specific_heat)) o << "Specific heat\t" << format_number(t.specific_heat / 1000.0, 4) << " J/(g\xC2\xB7K)\n";
+        if (finite(t.electronic_heat_capacity)) o << "Electrons' share\t" << u.format(t.electronic_heat_capacity, "molar entropy", 3) << " (tiny: only electrons near the Fermi level can absorb heat)\n";
+        if (finite(t.debye_temperature)) o << "Debye temperature\t" << u.format(t.debye_temperature, "temperature", 3) << " (estimate)\n";
+        if (finite(t.thermal_conductivity)) o << "Thermal conductivity\t" << format_number(t.thermal_conductivity, 4) << " W/(m\xC2\xB7K)\n";
+        if (finite(t.thermal_diffusivity)) o << "Thermal diffusivity\t" << format_number(t.thermal_diffusivity * 1e6, 4) << " mm\xC2\xB2/s\n";
+        o << "#Electrical conduction\n";
+        if (finite(t.resistivity)) o << "Resistivity\t" << format_number(t.resistivity, 4) << " \xCE\xA9\xC2\xB7m (" << format_number(t.resistivity * 1e8, 4) << " \xC2\xB5\xCE\xA9\xC2\xB7" "cm)\n";
+        if (finite(t.conductivity)) o << "Conductivity\t" << format_number(t.conductivity, 4) << " S/m\n";
+        if (finite(t.resistivity_293)) o << "Resistivity at 20 \xC2\xB0" "C\t" << format_number(t.resistivity_293, 4) << " \xCE\xA9\xC2\xB7m\n";
+        if (finite(t.temperature_coefficient)) o << "Temperature coefficient\t" << format_number(t.temperature_coefficient, 3) << " per K (warmer conducts worse)\n";
+        if (finite(t.relaxation_time)) o << "Time between collisions\t" << format_number(t.relaxation_time * 1e15, 4) << " fs\n";
+        if (finite(t.mean_free_path)) o << "Mean free path\t" << format_number(t.mean_free_path * 1e9, 3) + " nm" << "\n";
+        if (finite(t.mobility)) o << "Electron mobility\t" << format_number(t.mobility * 1e4, 4) << " cm\xC2\xB2/(V\xC2\xB7s)\n";
+        if (finite(t.hall_coefficient)) o << "Hall coefficient\t" << format_number(t.hall_coefficient, 4) << " m\xC2\xB3/C\n";
+        if (finite(t.plasma_wavelength)) o << "Plasma wavelength\t" << format_number(t.plasma_wavelength * 1e9, 4) << " nm (shorter light passes, longer reflects: why metals are shiny)\n";
+        o << "#Induction and magnetism\n";
+        if (finite(t.skin_depth)) o << "Skin depth at " << format_number(m_frequency, 4) << " Hz\t" << format_number(t.skin_depth * 1000.0, 3) + " mm" << "\n";
+        o << "AC current and eddy currents crowd into this outer layer; induction heating works there.\n";
+        o << "Magnetism\t" << fc::to_string(t.magnetic.order);
+        if (finite(t.magnetic.ordering_temperature)) o << " (orders below " << u.format(t.magnetic.ordering_temperature, "temperature", 4) << ")";
+        o << "\n";
+        if (t.magnetic.relative_permeability > 1.5) o << "Relative permeability\t\xE2\x89\x88 " << format_number(t.magnetic.relative_permeability, 3) << "\n";
+        if (!t.magnetic.note.empty()) o << t.magnetic.note << "\n";
+        for (const std::string& n : t.notes) o << n << "\n";
+    } catch (...) {
+    }
+    try {
+        o << chem_util::susceptibility_readouts(fc::metal_susceptibility(m, m_temperature));
+        o << chem_util::electron_gas_readouts(fc::metal_electron_gas(m, m_temperature), u);
+        o << chem_util::dielectric_readouts(fc::metal_dielectric(m));
+        o << chem_util::mechanics_readouts(fc::metal_mechanics(m, m_temperature));
+    } catch (...) {
+    }
     if (!m.notes.empty()) {
         o << "#Notes\n";
         for (const std::string& n : m.notes) o << n << "\n";

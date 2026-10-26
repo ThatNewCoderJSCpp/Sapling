@@ -1,0 +1,148 @@
+<!grove>
+<grove>
+    <head>
+        <title>Kinetics</title>
+    </head>
+    <body>
+        <row class="chem-workspace">
+            <column class="chem-side scroll">
+                <h3 class="side-title">What to work out</h3>
+                <row class="seg wrap">
+                    <button id="kin-mode-rate" class="segbtn on" title="Integrated rate laws, half-lives">Rate law</button>
+                    <button id="kin-mode-mechanism" class="segbtn" title="Several elementary steps, solved numerically">Mechanism</button>
+                    <button id="kin-mode-arrhenius" class="segbtn" title="How k changes with temperature">Arrhenius</button>
+                    <button id="kin-mode-profile" class="segbtn" title="Energy diagram with and without a catalyst">Energy profile</button>
+                    <button id="kin-mode-boltzmann" class="segbtn" title="Maxwell-Boltzmann speeds and the fraction above Ea">Molecular speeds</button>
+                    <button id="kin-mode-fit" class="segbtn" title="Find the order and k from your data">Fit data</button>
+                </row>
+
+                <column id="kin-rate" class="group">
+                    <h3 class="side-title">A &#8594; products, rate = k[A]&#8319;</h3>
+                    <row class="line">
+                        <text class="label-m">Order</text>
+                        <input_select id="kin-order" class="grow" value="1">
+                            <option value="0">0 (zero order)</option>
+                            <option value="1">1 (first order)</option>
+                            <option value="2">2 (second order)</option>
+                        </input_select>
+                    </row>
+                    <row class="line">
+                        <text class="label-m">k</text>
+                        <input_float id="kin-k" class="grow" value="0.1" />
+                        <text id="kin-k-unit" class="muted">1/s</text>
+                    </row>
+                    <row class="line">
+                        <text class="label-m">[A]&#8320;</text>
+                        <input_float id="kin-a0" class="grow" value="1" />
+                        <text class="muted">M</text>
+                    </row>
+                    <row class="line">
+                        <text class="label-m">Show to</text>
+                        <input_time id="kin-tmax" class="grow" value="0" unit="s" />
+                    </row>
+                    <text class="hint">0 shows five half-lives.</text>
+                    <row class="line">
+                        <text class="label-m">Plot</text>
+                        <input_select id="kin-plot" class="grow" value="conc">
+                            <option value="conc">[A] and [P] against time</option>
+                            <option value="ln">ln[A] (straight for first order)</option>
+                            <option value="inv">1/[A] (straight for second order)</option>
+                        </input_select>
+                    </row>
+                </column>
+
+                <column id="kin-mechanism" class="group hidden">
+                    <h3 class="side-title">Elementary steps</h3>
+                    <text class="hint">One step per part, separated by semicolons: reactants -&gt; products : k. Use &lt;-&gt; with two rate constants for a reversible step.</text>
+                    <input_string id="kin-steps" value="A -> B : 0.3; B -> C : 0.1" />
+                    <text class="muted">Starting concentrations (M)</text>
+                    <input_string id="kin-init" value="A = 1" />
+                    <row class="line">
+                        <text class="label-m">Show to</text>
+                        <input_time id="kin-mech-tmax" class="grow" value="40" unit="s" />
+                    </row>
+                    <button id="kin-mech-go" class="primary">Run</button>
+                </column>
+
+                <column id="kin-arrhenius" class="group hidden">
+                    <h3 class="side-title">k = A e^(&#8722;Ea/RT)</h3>
+                    <row class="line">
+                        <text class="label-m">Ea</text>
+                        <input_quantity id="kin-ea" class="grow" dimension="molar energy" unit="kJ/mol" value="50" />
+                    </row>
+                    <row class="line">
+                        <text class="label-m">A</text>
+                        <input_float id="kin-prefactor" class="grow" value="1e10" />
+                        <text class="muted">same units as k</text>
+                    </row>
+                    <row class="line">
+                        <text class="label-m">T&#8321;</text>
+                        <input_temperature id="kin-t1" class="grow" value="298.15" unit="K" slider min="200" max="1500" />
+                    </row>
+                    <row class="line">
+                        <text class="label-m">T&#8322;</text>
+                        <input_temperature id="kin-t2" class="grow" value="348.15" unit="K" slider min="200" max="1500" />
+                    </row>
+                    <row class="line">
+                        <text class="label-m">Plot</text>
+                        <input_select id="kin-arr-plot" class="grow" value="k">
+                            <option value="k">k against T</option>
+                            <option value="ln">ln k against 1/T</option>
+                        </input_select>
+                    </row>
+                </column>
+
+                <column id="kin-profile" class="group hidden">
+                    <h3 class="side-title">Reaction energy profile</h3>
+                    <row class="line">
+                        <text class="label-m">&#916;H</text>
+                        <input_quantity id="kin-dh" class="grow" dimension="molar energy" unit="kJ/mol" value="-50" />
+                    </row>
+                    <row class="line">
+                        <text class="label-m">Ea</text>
+                        <input_quantity id="kin-prof-ea" class="grow" dimension="molar energy" unit="kJ/mol" value="80" />
+                    </row>
+                    <input_bool id="kin-cat" checked>With a catalyst</input_bool>
+                    <row class="line">
+                        <text class="label-m">Ea (cat.)</text>
+                        <input_quantity id="kin-ea-cat" class="grow" dimension="molar energy" unit="kJ/mol" value="50" />
+                    </row>
+                </column>
+
+                <column id="kin-boltzmann" class="group hidden">
+                    <h3 class="side-title">Maxwell-Boltzmann speeds</h3>
+                    <row class="line">
+                        <text class="label-m">Gas</text>
+                        <input_string id="kin-gas" class="grow" value="N2" placeholder="formula, or a molar mass in g/mol" />
+                    </row>
+                    <row class="line">
+                        <text class="label-m">T&#8321;</text>
+                        <input_temperature id="kin-mb-t1" class="grow" value="298.15" unit="K" slider min="10" max="3000" />
+                    </row>
+                    <row class="line">
+                        <text class="label-m">T&#8322;</text>
+                        <input_temperature id="kin-mb-t2" class="grow" value="800" unit="K" slider min="10" max="3000" />
+                    </row>
+                    <row class="line">
+                        <text class="label-m">Ea</text>
+                        <input_quantity id="kin-mb-ea" class="grow" dimension="molar energy" unit="kJ/mol" value="50" />
+                    </row>
+                </column>
+
+                <column id="kin-fit" class="group hidden">
+                    <h3 class="side-title">Your data</h3>
+                    <text class="hint">Pairs of time (s) and concentration (M), separated by semicolons. The fit tries zero, first and second order and picks the straightest line.</text>
+                    <input_string id="kin-data" value="0, 1.0; 10, 0.74; 20, 0.55; 30, 0.41; 40, 0.30; 60, 0.17" />
+                    <button id="kin-fit-go" class="primary">Fit</button>
+                </column>
+                <text id="kin-status" class="hint"></text>
+            </column>
+            <column class="chem-stage">
+                <canvas id="chem-kinetics-view" />
+            </column>
+            <column class="chem-info scroll">
+                <column id="kin-readouts" class="panel"></column>
+            </column>
+        </row>
+    </body>
+</grove>

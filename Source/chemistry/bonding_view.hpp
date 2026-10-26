@@ -17,7 +17,10 @@ enum class SandboxTool { Atom, Bond, Move, Erase, Inspect };
 struct SandboxAtom {
     int z = 6;
     Vec3 p;
+    int neutrons = 0;
 };
+
+int sandbox_mass_number(const SandboxAtom& a);
 
 struct SandboxBond {
     int a = 0;
@@ -148,6 +151,7 @@ private:
     std::map<std::string, bool> m_options;
     double m_temperature = 298.15;
     double m_pressure = 101325.0;
+    double m_frequency = 60.0;
     std::uint64_t m_version = 1;
 
     CovalentState m_cov;

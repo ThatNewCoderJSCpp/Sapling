@@ -272,6 +272,89 @@ void test_other_views_and_tools() {
     check(contains(chemistry_tool(shared, { "ions", "", "phosph" }), "phosphate"), "ions can be searched");
 }
 
+void test_new_chemistry_views() {
+    ChemShared shared;
+    Canvas c;
+    c.resize(400, 300);
+    Theme th;
+    std::unique_ptr<ChemView> kin = make_kinetics_view(shared);
+    kin->draw(c, th);
+    check(painted(c, th.background), "the kinetics view draws");
+    check(contains(kin->command({ "rate", "1", "0.1", "1", "0", "conc" }), "ok"), "first-order rate law runs");
+    check(contains(kin->command({ "readouts" }), "6.93"), "first-order half-life is ln2/k");
+    check(contains(kin->command({ "mechanism", "A -> B : 0.3; B -> C : 0.1", "A = 1", "40" }), "ok"), "mechanisms integrate");
+    check(contains(kin->command({ "fit", "0, 1.0; 10, 0.74; 20, 0.55; 30, 0.41; 40, 0.30; 60, 0.17" }), "ok") && contains(kin->command({ "readouts" }), "first order"), "data fitting picks first order");
+    check(contains(kin->command({ "boltzmann", "N2", "298", "800", "50000" }), "ok"), "Maxwell-Boltzmann takes a formula");
+    check(contains(kin->command({ "arrhenius", "50000", "1e10", "298", "348", "ln" }), "ok"), "Arrhenius runs");
+    kin->draw(c, th);
+    check(painted(c, th.background), "the Arrhenius plot draws");
+    std::unique_ptr<ChemView> ab = make_acidbase_view(shared);
+    ab->draw(c, th);
+    check(painted(c, th.background), "the acid-base view draws");
+    check(contains(ab->command({ "acids" }), "acetic acid"), "acids are listed");
+    check(contains(ab->command({ "mixture", "HCl 0.01", "298.15" }), "ok\t2"), "0.01 M HCl has pH 2");
+    check(contains(ab->command({ "mixture", "NaOH 0.01", "298.15" }), "ok\t12") || contains(ab->command({ "mixture", "NaOH 0.01", "298.15" }), "ok\t11.99"), "0.01 M NaOH has pH 12");
+    check(contains(ab->command({ "buffer", "acetic acid", "0.1", "0.1", "0" }), "ok\t4.7"), "an equimolar acetate buffer sits at the pKa");
+    check(contains(ab->command({ "titration", "phosphoric acid", "0.1", "0.025", "0.1", "" }), "ok"), "polyprotic titrations run");
+    check(contains(ab->command({ "readouts" }), "quivalence"), "titrations report equivalence points");
+    check(contains(ab->command({ "readouts" }), "pOH"), "titrations report pOH");
+    check(contains(ab->command({ "titration", "ammonia", "0.1", "0.025", "0.1", "", "hydrochloric acid", "base" }), "ok\t11.1") && contains(ab->command({ "readouts" }), "weak base titrated with a strong acid"), "a weak base in the flask titrated with a strong acid");
+    check(contains(ab->command({ "titration", "acetic acid", "0.1", "0.025", "0.1", "", "ammonia", "acid" }), "ok") && contains(ab->command({ "readouts" }), "no sharp end point"), "weak with weak has no sharp end point");
+    check(contains(ab->command({ "titration", "carbonate", "0.1", "0.025", "0.1", "", "hydrochloric acid", "base" }), "ok") && contains(ab->command({ "readouts" }), "Equivalence point 2\t50 mL"), "carbonate shows two equivalence points");
+    check(contains(ab->command({ "titration", "acetic acid", "0.1", "0.025", "0.1", "", "nitric acid", "acid" }), "both are acids"), "two acids are refused");
+    check(contains(ab->command({ "mix", "acid|acetic acid|sol|0.1|0.05;base|sodium hydroxide|sol|0.1|0.025;", "0", "298.15" }), "ok\t4.75"), "half-neutralized acetic acid mixed by volume is at its pKa");
+    check(contains(ab->command({ "mix", "base|sodium hydroxide|g|0.39997", "0.1", "298.15" }), "ok\t12.99") && contains(ab->command({ "readouts" }), "Total volume"), "a weighed solid dissolved in water");
+    check(contains(ab->command({ "mix", "acid|hydrochloric acid|mol|0.001;base|ammonia|sol|0.1|0.01", "0.09", "298.15" }), "ok") && contains(ab->command({ "readouts" }), "exactly cancel"), "moles and solutions mix to an equivalence point");
+    check(contains(ab->command({ "titration", "acetic acid", "0.1", "0.025", "0.1", "", "sodium hydroxide", "acid", "0.0125", "L" }), "ok") && contains(ab->command({ "readouts" }), "After adding 0.0125 L") && contains(ab->command({ "readouts" }), "pH\t4.75") && contains(ab->command({ "readouts" }), "Equivalence point 1\t0.025 L"), "volumes follow the chosen unit and the added amount is reported");
+    check(contains(ab->command({ "scale", "poh" }), "poh") && contains(ab->command({ "mixture", "HCl 0.01", "298.15" }), "\t11.99"), "pOH comes back alongside pH");
+    ab->command({ "scale", "ph" });
+    std::unique_ptr<ChemView> el = make_element_view(shared);
+    el->command({ "element", "C", "0", "2" });
+    check(contains(el->command({ "readouts" }), "14"), "extra neutrons make carbon-14");
+    el->command({ "style", "nucleus" });
+    el->draw(c, th);
+    check(painted(c, th.background), "the nucleus picture draws");
+    el->command({ "element", "Cu", "0", "0" });
+    const std::string cu = el->command({ "readouts" });
+    check(contains(cu, "Specific heat") || contains(cu, "specific heat"), "element readouts show the specific heat");
+    check(contains(cu, "esistivity"), "element readouts show the resistivity");
+    check(contains(cu, "[Ar]"), "the noble-gas configuration is shown");
+    check(contains(cu, "Work function") && contains(cu, "Young's modulus") && contains(cu, "Fermi energy") && contains(cu, "susceptibility"), "element readouts cover electrons, stiffness and magnetism");
+    check(contains(el->command({ "nucleus", "2d" }), "2d") && contains(el->command({ "nucleus", "3d" }), "3d") && contains(el->command({ "nucleus", "circle" }), "circle"), "the nucleus can be one circle, flat or 3D");
+    el->command({ "style", "both" });
+    el->command({ "nucleus", "2d" });
+    el->draw(c, th);
+    check(painted(c, th.background), "the shells draw with every nucleon");
+    std::unique_ptr<ChemView> ph = make_phase_view(shared);
+    ph->command({ "axes", "0", "700", "0", "3e7" });
+    check(contains(ph->command({ "axis_values" }), "700"), "the axis range is kept");
+    ph->command({ "extreme", "1" });
+    check(contains(ph->command({ "readouts" }), "ioniz"), "plasma readouts appear");
+    check(!ph->command({ "selection" }).empty(), "the selection panel has text");
+    ph->command({ "substance", "H2O2" });
+    check(!contains(ph->command({ "props" }), "vaporization\t\t"), "hydrogen peroxide gets an enthalpy of vaporization");
+    std::unique_ptr<ChemView> orb = make_orbital_view(shared);
+    orb->command({ "element", "Cs" });
+    orb->command({ "show", "1s" });
+    check(std::strtod(orb->command({ "rmax", "auto" }).c_str(), nullptr) > 0.0, "the radial range resets to auto");
+    std::unique_ptr<ChemView> bond = make_bonding_view(shared);
+    check(contains(bond->command({ "load_compound", "XeF4" }), "ok"), "XeF4 loads");
+    check(!contains(bond->command({ "readouts" }), "No bond energy"), "Xe-F has a bond energy");
+    bond->command({ "mode", "ionic" });
+    check(contains(bond->command({ "ionic", "ammonium", "sulfate" }), "ok"), "polyatomic ions build ionic lattices");
+    check(contains(bond->command({ "ionic", "Cu2+", "O2-" }), "CuO") && contains(bond->command({ "ionic", "Cu+", "Cl-" }), "CuCl"), "metal ions of either charge build lattices");
+    check(contains(bond->command({ "readouts" }), "eat capacity") || contains(bond->command({ "readouts" }), "Specific heat"), "ionic readouts show heat capacity");
+    bond->command({ "mode", "metallic" });
+    bond->command({ "metal", "Cu=70;Zn=30" });
+    check(contains(bond->command({ "readouts" }), "Skin depth"), "metal readouts show the skin depth");
+    bond->command({ "mode", "covalent" });
+    bond->command({ "load_compound", "water" });
+    check(contains(bond->command({ "readouts" }), "78.36"), "water's permittivity is shown");
+    bond->command({ "mode", "ionic" });
+    bond->command({ "ionic", "Na", "Cl" });
+    check(contains(bond->command({ "readouts" }), "Relative permittivity") && contains(bond->command({ "readouts" }), "Bulk modulus"), "salt shows its permittivity and stiffness");
+}
+
 } // namespace
 
 int main() {
@@ -283,6 +366,7 @@ int main() {
     test_json_and_storage();
     test_bonding_view();
     test_other_views_and_tools();
+    test_new_chemistry_views();
     std::printf("%d passed, %d failed\n", g_passed, g_failed);
     return g_failed == 0 ? 0 : 1;
 }

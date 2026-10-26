@@ -18,6 +18,54 @@
                 </row>
                 <text class="muted">Or pick an element</text>
                 <input_element id="ph-element" deselect />
+
+                <row class="line">
+                    <h3 class="side-title grow">Or build one</h3>
+                    <input_bool id="ph-build-open">Show the builder</input_bool>
+                </row>
+                <column id="ph-builder" class="group hidden">
+                    <row class="seg">
+                        <button id="phb-mode-covalent" class="segbtn on">Molecule</button>
+                        <button id="phb-mode-ionic" class="segbtn">Ionic</button>
+                        <button id="phb-mode-metallic" class="segbtn">Metal</button>
+                    </row>
+                    <canvas id="chem-phase-build-view" class="build-canvas" tabindex="0" />
+                    <column id="phb-covalent" class="group">
+                        <row class="seg wrap">
+                            <button id="phb-tool-atom" class="segbtn on" title="Click to place atoms; drag from an atom to grow a bond">Atom</button>
+                            <button id="phb-tool-bond" class="segbtn" title="Drag between atoms; click a bond to cycle single/double/triple">Bond</button>
+                            <button id="phb-tool-move" class="segbtn">Move</button>
+                            <button id="phb-tool-erase" class="segbtn">Erase</button>
+                        </row>
+                        <input_element id="phb-element" only-classes="nonmetal metalloid" also="Al Be" value="C" />
+                        <row class="line wrap">
+                            <button id="phb-fill" class="ghost" title="Add the hydrogens each atom needs">Fill H</button>
+                            <button id="phb-tidy" class="ghost">Tidy</button>
+                            <button id="phb-undo" class="ghost">Undo</button>
+                            <button id="phb-clear" class="ghost">Clear</button>
+                        </row>
+                        <row class="line">
+                            <input_string id="phb-template" class="grow" placeholder="start from a name, formula or SMILES" />
+                            <button id="phb-template-load" class="ghost">Load</button>
+                        </row>
+                    </column>
+                    <column id="phb-ionic" class="group hidden">
+                        <input_ion id="phb-cation" charges="positive" monatomic value="sodium" />
+                        <input_ion id="phb-anion" charges="negative" monatomic value="chloride" />
+                    </column>
+                    <column id="phb-metallic" class="group hidden">
+                        <input_element id="phb-metals" only-classes="metal metalloid" multiple max-selected="4" value="Cu Zn" />
+                        <row class="line">
+                            <input_string id="phb-metal-spec" class="grow" value="Cu=70; Zn=30" placeholder="Cu=70; Zn=30" />
+                            <button id="phb-metal-set" class="ghost">Set</button>
+                        </row>
+                    </column>
+                    <row class="line">
+                        <button id="phb-plot" class="primary">Plot this</button>
+                        <text id="phb-status" class="hint grow"></text>
+                    </row>
+                </column>
+
                 <row class="seg">
                     <button id="ph-2d" class="segbtn on">2D: P vs T</button>
                     <button id="ph-3d" class="segbtn">3D: P, v, T</button>
@@ -25,15 +73,44 @@
                 <h3 class="side-title">State point</h3>
                 <row class="line">
                     <text class="label-w">T</text>
-                    <input_float id="ph-t" class="grow" value="25" />
-                    <input_select id="ph-t-unit" class="unit-select" dimension="temperature" value="&#176;C"><option>&#176;C</option></input_select>
+                    <input_temperature id="ph-t" class="grow" value="25" unit="&#176;C" />
                 </row>
                 <row class="line">
                     <text class="label-w">P</text>
-                    <input_float id="ph-p" class="grow" value="1" />
-                    <input_select id="ph-p-unit" class="unit-select" dimension="pressure" value="atm"><option>atm</option></input_select>
+                    <input_pressure id="ph-p" class="grow" value="1" unit="atm" />
                 </row>
-                <text class="hint">Click or drag on the 2D diagram to move the state point.</text>
+                <text class="hint">Click or drag on the 2D diagram to move the state point. Click the triple point, critical point or a normal point for its details, and drag along a line to follow it. In 3D, drag across the surface to read points; Shift+drag or right-drag turns it.</text>
+
+                <h3 class="side-title">Axes</h3>
+                <column class="checks">
+                    <input_bool id="ph-logp" checked>Log pressure axis</input_bool>
+                    <input_bool id="ph-logt">Log temperature axis</input_bool>
+                    <input_bool id="ph-extreme">Show plasma and quantum gases</input_bool>
+                    <input_bool id="ph-axes-custom">Choose the axis ranges</input_bool>
+                </column>
+                <column id="ph-axes" class="group hidden">
+                    <row class="line">
+                        <text class="label-m">Lowest T</text>
+                        <input_temperature id="ph-tmin" class="grow" value="0" unit="K" />
+                    </row>
+                    <row class="line">
+                        <text class="label-m">Highest T</text>
+                        <input_temperature id="ph-tmax" class="grow" value="1000" unit="K" />
+                    </row>
+                    <row class="line">
+                        <text class="label-m">Lowest P</text>
+                        <input_pressure id="ph-pmin" class="grow" value="0" unit="atm" />
+                    </row>
+                    <row class="line">
+                        <text class="label-m">Highest P</text>
+                        <input_pressure id="ph-pmax" class="grow" value="1000" unit="atm" />
+                    </row>
+                    <row class="line">
+                        <button id="ph-axes-auto" class="ghost">Fit to the substance</button>
+                        <text class="hint grow">0 K and 0 atm are the lowest; up to 10 million K and 100 million atm.</text>
+                    </row>
+                </column>
+
                 <h3 class="side-title">Properties (edit to make your own)</h3>
                 <column id="ph-props" class="params"></column>
                 <row class="line">
@@ -44,6 +121,7 @@
                 <canvas id="chem-phase-view" />
             </column>
             <column class="chem-info scroll">
+                <column id="ph-selection" class="panel"></column>
                 <column id="ph-readouts" class="panel"></column>
             </column>
         </row>

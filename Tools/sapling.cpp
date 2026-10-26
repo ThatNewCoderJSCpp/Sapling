@@ -178,6 +178,9 @@ private:
         add_chem_view("orbital", "chem-orbital-view", make_orbital_view(m_chem));
         add_chem_view("cloud", "chem-cloud-view", make_cloud_view(m_chem));
         add_chem_view("element", "chem-element-view", make_element_view(m_chem));
+        add_chem_view("kinetics", "chem-kinetics-view", make_kinetics_view(m_chem));
+        add_chem_view("acidbase", "chem-acid-view", make_acidbase_view(m_chem));
+        add_chem_view("phasebuild", "chem-phase-build-view", make_bonding_view(m_chem));
         for (auto& kv : m_chem_views) {
             ChemCanvas* c = kv.second.get();
             if (!c->node) continue;
@@ -308,6 +311,19 @@ private:
                 return panel_lines(it->second->view->command(std::vector<std::string>(f.begin() + 1, f.end())));
             } catch (const std::exception& e) {
                 return std::string("w\t") + e.what() + "\n";
+            }
+        });
+        native("chem.transfer", [this](const std::vector<std::string>& args) {
+            const auto f = fields_of(args);
+            const auto from = m_chem_views.find(arg(f, 0));
+            const auto to = m_chem_views.find(arg(f, 1));
+            if (from == m_chem_views.end() || to == m_chem_views.end()) return std::string("error\tno such view");
+            try {
+                const std::string json = from->second->view->command({ "json" });
+                to->second->dirty = true;
+                return to->second->view->command({ "use_json", json });
+            } catch (const std::exception& e) {
+                return std::string("error\t") + e.what();
             }
         });
         native("chem.toolpanel", [this](const std::vector<std::string>& args) {

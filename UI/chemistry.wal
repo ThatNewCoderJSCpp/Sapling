@@ -32,6 +32,10 @@ function status(const string&: id, const string&: reply, const string&: good) ->
 function bond_refresh() -> void;
 function bond_set_mode(const string&: mode) -> void;
 function bond_send_tp() -> void;
+function bond_tp_args() -> string;
+function bond_sync_neutrons() -> void;
+function metal_normalize(const string&: changed) -> void;
+function round1(short float: v) -> short float;
 function bond_saved_refresh() -> void;
 function metal_build_sliders() -> void;
 function metal_send() -> void;
@@ -49,10 +53,29 @@ function phase_refresh(bool: props) -> void;
 function phase_send_point() -> void;
 function phase_saved_refresh() -> void;
 function phase_build_props() -> void;
+function phase_send_axes() -> void;
+function phase_sync_point() -> void;
+function phb_set_mode(const string&: mode) -> void;
+function phb_send_metals() -> void;
+string: phb_mode = "covalent";
 function orb_refresh() -> void;
 function cloud_refresh(bool: orbitals) -> void;
 string: cloud_keep = "2,1,0";
 function element_refresh() -> void;
+function kin_set_mode(const string&: mode) -> void;
+function kin_send() -> void;
+function ab_set_mode(const string&: mode) -> void;
+function ab_send() -> void;
+function mx_setup(long int: i) -> void;
+function mx_spec() -> string;
+bool: mx_typed = false;
+long int: mx_count = 6l;
+function ab_titration_setup(bool: defaults) -> void;
+function strength_of(const string&: combo, long int: index) -> string;
+function molar(const string&: id) -> string;
+function liters(const string&: id) -> string;
+string: kin_mode = "rate";
+string: ab_mode = "mixture";
 function units_build() -> void;
 function refresh_all() -> void;
 
@@ -260,8 +283,19 @@ function bond_refresh() -> void {
     fill_panel("bond-selection", panel("bond", "selection"));
     if (bond_mode == "covalent") then {
         fill_select("cov-resonance", cmd("bond", "resonance_list"), by("cov-resonance").value_string());
+        bond_sync_neutrons();
     }
 } end function bond_refresh
+
+function bond_sync_neutrons() -> void {
+    string: n = cmd("bond", "selected_neutrons");
+    if (n.empty()) then {
+        by("cov-neutrons-note").set_inner_text("Select an atom first");
+        return;
+    }
+    by("cov-neutrons").set_value_integer(std::io::parse_int<long int>(n));
+    by("cov-neutrons-note").set_inner_text("0 is the most common isotope");
+} end function bond_sync_neutrons
 
 function bond_set_mode(const string&: mode) -> void {
     bond_mode = mode;
@@ -276,10 +310,12 @@ function bond_set_mode(const string&: mode) -> void {
     bond_refresh();
 } end function bond_set_mode
 
+function bond_tp_args() -> string {
+    return "tp\t" + by("bond-t").value_float().to_string() + "\tK\t" + by("bond-p").value_float().to_string() + "\tPa";
+} end function bond_tp_args
+
 function bond_send_tp() -> void {
-    string: t = by("bond-t").value_float().to_string();
-    string: p = by("bond-p").value_float().to_string();
-    string: reply = cmd("bond", "tp\t" + t + "\t" + by("bond-t-unit").value_string() + "\t" + p + "\t" + by("bond-p-unit").value_string());
+    string: reply = cmd("bond", bond_tp_args());
     status("bond-save-status", reply, "");
     bond_refresh();
 } end function bond_send_tp
@@ -316,18 +352,67 @@ function metal_build_sliders() -> void {
         s.set_attribute("max", "100");
         s.set_attribute("step", "0.5");
         s.set_value_float(share);
-        grove::Element: v = cel("text", "small", "");
-        v.set_attribute("id", "mfv-" + sym);
-        v.set_inner_text(share.to_string());
+        s.on("input", [sym](grove::Event&: e) -> void {
+            metal_normalize(sym);
+        });
         s.on("change", [sym](grove::Event&: e) -> void {
-            by("mfv-" + sym).set_inner_text(e.target().value_float().to_string());
+            metal_normalize(sym);
             metal_send();
         });
         row.append_child(s);
-        row.append_child(v);
         box.append_child(row);
     }
 } end function metal_build_sliders
+
+function round1(short float: v) -> short float {
+    long int: tenths = static_cast<long int>(v * static_cast<short float>(10.0) + static_cast<short float>(0.5));
+    return static_cast<short float>(tenths) / static_cast<short float>(10.0);
+} end function round1
+
+function metal_normalize(const string&: changed) -> void {
+    auto: syms = by("metal-elements").value_string().split(" ");
+    short float: hundred = static_cast<short float>(100.0);
+    short float: zero = static_cast<short float>(0.0);
+    short float: fixed_value = by("mf-" + changed).value_float();
+    if (fixed_value > hundred) then {
+        fixed_value = hundred;
+    }
+    short float: others = zero;
+    long int: count = 0l;
+    for (long int: i = 0l; i < syms.size(); i += 1l) {
+        if (syms[i].empty() || syms[i] == changed || !by("mf-" + syms[i]).exists()) then {
+            continue;
+        }
+        others = others + by("mf-" + syms[i]).value_float();
+        count += 1l;
+    }
+    if (count == 0l) then {
+        fixed_value = hundred;
+    }
+    short float: left = hundred - fixed_value;
+    short float: used = zero;
+    long int: seen = 0l;
+    for (long int: i = 0l; i < syms.size(); i += 1l) {
+        if (syms[i].empty() || syms[i] == changed || !by("mf-" + syms[i]).exists()) then {
+            continue;
+        }
+        seen += 1l;
+        short float: v = zero;
+        if (seen == count) then {
+            v = left - used;
+        } else if (others > zero) then {
+            v = round1(by("mf-" + syms[i]).value_float() * left / others);
+        } else then {
+            v = round1(left / static_cast<short float>(count));
+        }
+        if (v < zero) then {
+            v = zero;
+        }
+        used = used + v;
+        by("mf-" + syms[i]).set_value_float(v);
+    }
+    by("mf-" + changed).set_value_float(fixed_value);
+} end function metal_normalize
 
 function metal_send() -> void {
     auto: syms = by("metal-elements").value_string().split(" ");
@@ -354,7 +439,6 @@ function metal_preset(const string&: symbols, const string&: percents) -> void {
     auto: pct = percents.split(" ");
     for (long int: i = 0l; i < syms.size() && i < pct.size(); i += 1l) {
         by("mf-" + syms[i]).set_value_float(std::io::parse_float<short float>(pct[i]));
-        by("mfv-" + syms[i]).set_inner_text(pct[i]);
     }
     metal_send();
 } end function metal_preset
@@ -588,6 +672,7 @@ function cv_convert() -> void {
 
 function phase_refresh(bool: props) -> void {
     fill_panel("ph-readouts", panel("phase", "readouts"));
+    fill_panel("ph-selection", panel("phase", "selection"));
     if (props) then {
         phase_build_props();
     }
@@ -595,9 +680,60 @@ function phase_refresh(bool: props) -> void {
 } end function phase_refresh
 
 function phase_send_point() -> void {
-    cmd("phase", "point\t" + by("ph-t").value_float().to_string() + "\t" + by("ph-t-unit").value_string() + "\t" + by("ph-p").value_float().to_string() + "\t" + by("ph-p-unit").value_string());
+    cmd("phase", "point\t" + by("ph-t").value_float().to_string() + "\tK\t" + by("ph-p").value_float().to_string() + "\tPa");
     phase_refresh(false);
 } end function phase_send_point
+
+function phase_sync_point() -> void {
+    string: pv = cmd("phase", "point_values\tK\tPa");
+    by("ph-t").set_value_float(std::io::parse_float<short float>(field(pv, 0l)));
+    by("ph-p").set_value_float(std::io::parse_float<short float>(field(pv, 1l)));
+} end function phase_sync_point
+
+function phase_send_axes() -> void {
+    if (!by("ph-axes-custom").value_bool()) then {
+        cmd("phase", "axes\t\t\t\t");
+        return;
+    }
+    cmd("phase", "axes\t" + by("ph-tmin").value_float().to_string() + "\t" + by("ph-tmax").value_float().to_string() + "\t" + by("ph-pmin").value_float().to_string() + "\t" + by("ph-pmax").value_float().to_string());
+} end function phase_send_axes
+
+function phb_set_mode(const string&: mode) -> void {
+    phb_mode = mode;
+    cmd("phasebuild", "mode\t" + mode);
+    seg_on("phb-mode-covalent,phb-mode-ionic,phb-mode-metallic", "phb-mode-" + mode);
+    show_if("phb-covalent", mode == "covalent");
+    show_if("phb-ionic", mode == "ionic");
+    show_if("phb-metallic", mode == "metallic");
+    if (mode == "ionic") then {
+        status("phb-status", cmd("phasebuild", "ionic\t" + by("phb-cation").value_string() + "\t" + by("phb-anion").value_string()), "");
+    } else if (mode == "metallic") then {
+        status("phb-status", cmd("phasebuild", "metal\t" + by("phb-metal-spec").value_string()), "");
+    }
+    cmd("phasebuild", "frame");
+} end function phb_set_mode
+
+function phb_send_metals() -> void {
+    auto: syms = by("phb-metals").value_string().split(" ");
+    long int: n = 0l;
+    for (long int: i = 0l; i < syms.size(); i += 1l) {
+        if (!syms[i].empty()) then {
+            n += 1l;
+        }
+    }
+    if (n == 0l) then {
+        return;
+    }
+    string: share = round1(static_cast<short float>(100.0) / static_cast<short float>(n)).to_string();
+    string: spec = "";
+    for (long int: i = 0l; i < syms.size(); i += 1l) {
+        if (!syms[i].empty()) then {
+            spec = spec + syms[i] + "=" + share + "; ";
+        }
+    }
+    by("phb-metal-spec").set_value_string(spec);
+    status("phb-status", cmd("phasebuild", "metal\t" + spec), "");
+} end function phb_send_metals
 
 function phase_saved_refresh() -> void {
     auto: rows = cmd("phase", "saved").split("\n");
@@ -656,9 +792,184 @@ function cloud_refresh(bool: orbitals) -> void {
 } end function cloud_refresh
 
 function element_refresh() -> void {
-    cmd("element", "element\t" + by("el-table").value_string() + "\t" + by("el-charge").value_integer().to_string());
+    cmd("element", "element\t" + by("el-table").value_string() + "\t" + by("el-charge").value_integer().to_string() + "\t" + by("el-neutrons").value_integer().to_string());
+    cmd("element", "temperature\t" + by("el-t").value_float().to_string());
     fill_panel("el-readouts", panel("element", "readouts"));
 } end function element_refresh
+
+function molar(const string&: id) -> string {
+    return (by(id).value_float() / static_cast<short float>(1000.0)).to_string();
+} end function molar
+
+function liters(const string&: id) -> string {
+    return (by(id).value_float() * static_cast<short float>(1000.0)).to_string();
+} end function liters
+
+function kin_set_mode(const string&: mode) -> void {
+    kin_mode = mode;
+    seg_on("kin-mode-rate,kin-mode-mechanism,kin-mode-arrhenius,kin-mode-profile,kin-mode-boltzmann,kin-mode-fit", "kin-mode-" + mode);
+    auto: modes = "rate,mechanism,arrhenius,profile,boltzmann,fit".split(",");
+    for (long int: i = 0l; i < modes.size(); i += 1l) {
+        show_if("kin-" + modes[i], modes[i] == mode);
+    }
+    kin_send();
+} end function kin_set_mode
+
+function kin_send() -> void {
+    string: args = "";
+    if (kin_mode == "rate") then {
+        string: order = by("kin-order").value_string();
+        if (order == "0") then {
+            by("kin-k-unit").set_inner_text("M/s");
+        } else if (order == "2") then {
+            by("kin-k-unit").set_inner_text("1/(M·s)");
+        } else then {
+            by("kin-k-unit").set_inner_text("1/s");
+        }
+        args = "rate\t" + order + "\t" + by("kin-k").value_float().to_string() + "\t" + by("kin-a0").value_float().to_string() + "\t" + by("kin-tmax").value_float().to_string() + "\t" + by("kin-plot").value_string();
+    } else if (kin_mode == "mechanism") then {
+        args = "mechanism\t" + by("kin-steps").value_string() + "\t" + by("kin-init").value_string() + "\t" + by("kin-mech-tmax").value_float().to_string();
+    } else if (kin_mode == "arrhenius") then {
+        args = "arrhenius\t" + by("kin-ea").value_float().to_string() + "\t" + by("kin-prefactor").value_float().to_string() + "\t" + by("kin-t1").value_float().to_string() + "\t" + by("kin-t2").value_float().to_string() + "\t" + by("kin-arr-plot").value_string();
+    } else if (kin_mode == "profile") then {
+        string: cat = "";
+        if (by("kin-cat").value_bool()) then {
+            cat = by("kin-ea-cat").value_float().to_string();
+        }
+        args = "profile\t" + by("kin-dh").value_float().to_string() + "\t" + by("kin-prof-ea").value_float().to_string() + "\t" + cat;
+    } else if (kin_mode == "boltzmann") then {
+        args = "boltzmann\t" + by("kin-gas").value_string() + "\t" + by("kin-mb-t1").value_float().to_string() + "\t" + by("kin-mb-t2").value_float().to_string() + "\t" + by("kin-mb-ea").value_float().to_string();
+    } else then {
+        args = "fit\t" + by("kin-data").value_string();
+    }
+    status("kin-status", cmd("kinetics", args), "");
+    fill_panel("kin-readouts", panel("kinetics", "readouts"));
+} end function kin_send
+
+function ab_set_mode(const string&: mode) -> void {
+    ab_mode = mode;
+    seg_on("ab-mode-mixture,ab-mode-titration,ab-mode-species,ab-mode-buffer", "ab-mode-" + mode);
+    auto: modes = "mixture,titration,species,buffer".split(",");
+    for (long int: i = 0l; i < modes.size(); i += 1l) {
+        show_if("ab-" + modes[i], modes[i] == mode);
+    }
+    ab_send();
+} end function ab_set_mode
+
+function strength_of(const string&: combo, long int: index) -> string {
+    if (combo == "any" || combo.empty()) then {
+        return "both";
+    }
+    auto: parts = combo.split("-");
+    if (index < parts.size()) then {
+        return parts[index];
+    }
+    return "both";
+} end function strength_of
+
+function ab_titration_setup(bool: defaults) -> void {
+    bool: acid_in_flask = by("ab-flask-kind").value_string() == "acid";
+    string: combo = by("ab-combo").value_string();
+    string: flask = strength_of(combo, 0l);
+    string: added = strength_of(combo, 1l);
+    show_if("ab-flask-acid", acid_in_flask);
+    show_if("ab-flask-base", !acid_in_flask);
+    show_if("ab-tit-base", acid_in_flask);
+    show_if("ab-tit-acid", !acid_in_flask);
+    by("ab-flask-acid").set_attribute("strength", flask);
+    by("ab-flask-base").set_attribute("strength", flask);
+    by("ab-tit-base").set_attribute("strength", added);
+    by("ab-tit-acid").set_attribute("strength", added);
+    if (defaults) then {
+        if (flask == "strong") then {
+            by("ab-flask-acid").set_value_string("hydrochloric acid");
+            by("ab-flask-base").set_value_string("sodium hydroxide");
+        } else if (flask == "weak") then {
+            by("ab-flask-acid").set_value_string("acetic acid");
+            by("ab-flask-base").set_value_string("ammonia");
+        }
+        if (added == "strong") then {
+            by("ab-tit-base").set_value_string("sodium hydroxide");
+            by("ab-tit-acid").set_value_string("hydrochloric acid");
+        } else if (added == "weak") then {
+            by("ab-tit-base").set_value_string("ammonia");
+            by("ab-tit-acid").set_value_string("acetic acid");
+        }
+    }
+} end function ab_titration_setup
+
+function mx_setup(long int: i) -> void {
+    string: n = i.to_string();
+    bool: acid = by("mx-role-" + n).value_string() == "acid";
+    string: how = by("mx-how-" + n).value_string();
+    show_if("mx-acid-" + n, acid);
+    show_if("mx-base-" + n, !acid);
+    show_if("mx-crow-" + n, how == "sol");
+    show_if("mx-vrow-" + n, how == "sol");
+    show_if("mx-nrow-" + n, how == "mol");
+    show_if("mx-grow-" + n, how == "g");
+} end function mx_setup
+
+function mx_spec() -> string {
+    string: spec = "";
+    for (long int: i = 0l; i < mx_count; i += 1l) {
+        string: n = i.to_string();
+        if (by("mx-row-" + n).has_class("hidden")) then {
+            continue;
+        }
+        string: role = by("mx-role-" + n).value_string();
+        string: name = by("mx-acid-" + n).value_string();
+        if (role == "base") then {
+            name = by("mx-base-" + n).value_string();
+        }
+        string: how = by("mx-how-" + n).value_string();
+        string: item = role + "|" + name + "|" + how + "|";
+        if (how == "sol") then {
+            item = item + molar("mx-c-" + n) + "|" + liters("mx-v-" + n);
+        } else if (how == "mol") then {
+            item = item + by("mx-n-" + n).value_float().to_string();
+        } else then {
+            item = item + (by("mx-m-" + n).value_float() * static_cast<short float>(1000.0)).to_string();
+        }
+        spec = spec + item + ";";
+    }
+    return spec;
+} end function mx_spec
+
+function ab_send() -> void {
+    string: args = "";
+    if (ab_mode == "mixture") then {
+        if (mx_typed) then {
+            args = "mixture\t" + by("ab-mix").value_string() + "\t" + by("ab-t").value_float().to_string();
+        } else then {
+            args = "mix\t" + mx_spec() + "\t" + liters("mx-water") + "\t" + by("ab-t").value_float().to_string();
+        }
+    } else if (ab_mode == "titration") then {
+        string: kind = by("ab-flask-kind").value_string();
+        string: analyte = by("ab-flask-acid").value_string();
+        string: titrant = by("ab-tit-base").value_string();
+        if (kind == "base") then {
+            analyte = by("ab-flask-base").value_string();
+            titrant = by("ab-tit-acid").value_string();
+        }
+        args = "titration\t" + analyte + "\t" + molar("ab-ca") + "\t" + liters("ab-va") + "\t" + molar("ab-ct") + "\t" + liters("ab-vmax") + "\t" + titrant + "\t" + kind + "\t" + liters("ab-vadd") + "\t" + by("ab-vunit").value_string();
+    } else if (ab_mode == "species") then {
+        args = "species\t" + by("ab-species-acid").value_string();
+    } else then {
+        args = "buffer\t" + by("ab-buffer-acid").value_string() + "\t" + molar("ab-buf-ca") + "\t" + molar("ab-buf-cb") + "\t" + molar("ab-buf-add");
+    }
+    string: reply = cmd("acidbase", args);
+    if (field(reply, 0l) == "ok") then {
+        string: shown = "pH " + field(reply, 1l);
+        if (!field(reply, 2l).empty()) then {
+            shown = shown + "  ·  pOH " + field(reply, 2l);
+        }
+        by("ab-status").set_inner_text(shown);
+    } else then {
+        status("ab-status", reply, "");
+    }
+    fill_panel("ab-readouts", panel("acidbase", "readouts"));
+} end function ab_send
 
 function units_build() -> void {
     grove::Element: box = by("units-prefs");
@@ -693,6 +1004,8 @@ function refresh_all() -> void {
     cloud_refresh(false);
     element_refresh();
     fill_panel("ions-structure", panel("structure", "readouts"));
+    fill_panel("kin-readouts", panel("kinetics", "readouts"));
+    fill_panel("ab-readouts", panel("acidbase", "readouts"));
 } end function refresh_all
 
 fill_units();
@@ -786,18 +1099,34 @@ on_click("metal-preset-gold", []() -> void { metal_preset("Au Ag Cu", "60 20 20"
 on_change("lat-cells", []() -> void { cmd("bond", "cells\t" + by("lat-cells").value_float().to_string()); });
 on_click("lat-assemble", []() -> void { cmd("bond", "assemble"); });
 on_change("bond-t", []() -> void { bond_send_tp(); });
-on_change("bond-t-unit", []() -> void { bond_send_tp(); });
 on_change("bond-p", []() -> void { bond_send_tp(); });
-on_change("bond-p-unit", []() -> void { bond_send_tp(); });
-by("bond-t-slider").on("input", [](grove::Event&: e) -> void {
-    string: k = e.target().value_float().to_string();
-    string: reply = tool("convert\t" + k + "\tK\t" + by("bond-t-unit").value_string() + "\ttemperature");
-    if (field(reply, 0l) == "ok") then {
-        by("bond-t").set_value_float(std::io::parse_float<short float>(field(reply, 1l)));
-    }
-    cmd("bond", "tp\t" + k + "\tK\t" + by("bond-p").value_float().to_string() + "\t" + by("bond-p-unit").value_string());
+by("bond-t").on("input", [](grove::Event&: e) -> void { cmd("bond", bond_tp_args()); });
+by("bond-p").on("input", [](grove::Event&: e) -> void { cmd("bond", bond_tp_args()); });
+on_change("bond-freq", []() -> void {
+    cmd("bond", "frequency\t" + by("bond-freq").value_float().to_string());
+    bond_refresh();
 });
-by("bond-t-slider").on("change", [](grove::Event&: e) -> void { bond_refresh(); });
+on_change("cov-neutrons", []() -> void {
+    string: reply = cmd("bond", "neutrons\t" + by("cov-neutrons").value_integer().to_string());
+    status("bond-save-status", reply, "");
+    bond_refresh();
+});
+on_change("ion-cation-pick", []() -> void {
+    string: c = by("ion-cation-pick").value_string();
+    if (!c.empty()) then {
+        by("ion-cation").set_value_string(c);
+        status("bond-save-status", cmd("bond", "ionic\t" + c + "\t"), "");
+        bond_refresh();
+    }
+});
+on_change("ion-anion-pick", []() -> void {
+    string: a = by("ion-anion-pick").value_string();
+    if (!a.empty()) then {
+        by("ion-anion").set_value_string(a);
+        status("bond-save-status", cmd("bond", "ionic\t\t" + a), "");
+        bond_refresh();
+    }
+});
 on_click("bond-save", []() -> void {
     string: reply = cmd("bond", "save\t" + by("bond-save-name").value_string());
     status("bond-save-status", reply, "Saved to " + field(reply, 1l));
@@ -957,8 +1286,67 @@ on_click("ph-3d", []() -> void {
 });
 on_change("ph-t", []() -> void { phase_send_point(); });
 on_change("ph-p", []() -> void { phase_send_point(); });
-on_change("ph-t-unit", []() -> void { phase_send_point(); });
-on_change("ph-p-unit", []() -> void { phase_send_point(); });
+on_change("ph-logp", []() -> void { cmd("phase", "logp\t" + b01(by("ph-logp").value_bool())); });
+on_change("ph-logt", []() -> void { cmd("phase", "logt\t" + b01(by("ph-logt").value_bool())); });
+on_change("ph-extreme", []() -> void {
+    cmd("phase", "extreme\t" + b01(by("ph-extreme").value_bool()));
+    phase_refresh(false);
+});
+on_change("ph-axes-custom", []() -> void {
+    bool: on = by("ph-axes-custom").value_bool();
+    show_if("ph-axes", on);
+    if (on) then {
+        string: av = cmd("phase", "axis_values");
+        by("ph-tmin").set_value_float(std::io::parse_float<short float>(field(av, 0l)));
+        by("ph-tmax").set_value_float(std::io::parse_float<short float>(field(av, 1l)));
+        by("ph-pmin").set_value_float(std::io::parse_float<short float>(field(av, 2l)));
+        by("ph-pmax").set_value_float(std::io::parse_float<short float>(field(av, 3l)));
+    }
+    phase_send_axes();
+});
+auto: axis_ids = "ph-tmin,ph-tmax,ph-pmin,ph-pmax".split(",");
+for (long int: i = 0l; i < axis_ids.size(); i += 1l) {
+    on_change(axis_ids[i], []() -> void { phase_send_axes(); });
+}
+on_click("ph-axes-auto", []() -> void {
+    by("ph-axes-custom").set_value_bool(false);
+    show_if("ph-axes", false);
+    phase_send_axes();
+});
+on_change("ph-build-open", []() -> void { show_if("ph-builder", by("ph-build-open").value_bool()); });
+on_click("phb-mode-covalent", []() -> void { phb_set_mode("covalent"); });
+on_click("phb-mode-ionic", []() -> void { phb_set_mode("ionic"); });
+on_click("phb-mode-metallic", []() -> void { phb_set_mode("metallic"); });
+auto: phb_tools = "atom,bond,move,erase".split(",");
+for (long int: i = 0l; i < phb_tools.size(); i += 1l) {
+    string: t = phb_tools[i];
+    on_click("phb-tool-" + t, [t]() -> void {
+        cmd("phasebuild", "tool\t" + t);
+        seg_on("phb-tool-atom,phb-tool-bond,phb-tool-move,phb-tool-erase", "phb-tool-" + t);
+    });
+}
+on_change("phb-element", []() -> void { cmd("phasebuild", "element\t" + by("phb-element").value_string()); });
+on_click("phb-fill", []() -> void { cmd("phasebuild", "fill_h"); });
+on_click("phb-tidy", []() -> void { cmd("phasebuild", "tidy"); });
+on_click("phb-undo", []() -> void { cmd("phasebuild", "undo"); });
+on_click("phb-clear", []() -> void { cmd("phasebuild", "clear"); });
+on_click("phb-template-load", []() -> void {
+    string: v = by("phb-template").value_string();
+    if (!v.empty()) then {
+        status("phb-status", cmd("phasebuild", "load_compound\t" + v), "Loaded " + v);
+    }
+});
+on_change("phb-cation", []() -> void { status("phb-status", cmd("phasebuild", "ionic\t" + by("phb-cation").value_string() + "\t" + by("phb-anion").value_string()), ""); });
+on_change("phb-anion", []() -> void { status("phb-status", cmd("phasebuild", "ionic\t" + by("phb-cation").value_string() + "\t" + by("phb-anion").value_string()), ""); });
+on_change("phb-metals", []() -> void { phb_send_metals(); });
+on_click("phb-metal-set", []() -> void { status("phb-status", cmd("phasebuild", "metal\t" + by("phb-metal-spec").value_string()), ""); });
+on_change("phb-metal-spec", []() -> void { status("phb-status", cmd("phasebuild", "metal\t" + by("phb-metal-spec").value_string()), ""); });
+on_click("phb-plot", []() -> void {
+    string: reply = ccall("chem.transfer", "phasebuild\tphase");
+    status("phb-status", reply, "Plotted");
+    phase_sync_point();
+    phase_refresh(true);
+});
 on_click("ph-reset-props", []() -> void {
     cmd("phase", "reset_props");
     phase_refresh(true);
@@ -1020,7 +1408,100 @@ on_change("cl-spin", []() -> void { cmd("cloud", "spin\t" + b01(by("cl-spin").va
 
 on_change("el-table", []() -> void { element_refresh(); });
 on_change("el-charge", []() -> void { element_refresh(); });
+on_change("el-neutrons", []() -> void { element_refresh(); });
+on_change("el-t", []() -> void { element_refresh(); });
+on_change("el-nucleus", []() -> void { cmd("element", "nucleus\t" + by("el-nucleus").value_string()); });
 on_change("el-style", []() -> void { cmd("element", "style\t" + by("el-style").value_string()); });
+
+auto: kin_modes = "rate,mechanism,arrhenius,profile,boltzmann,fit".split(",");
+for (long int: i = 0l; i < kin_modes.size(); i += 1l) {
+    string: m = kin_modes[i];
+    on_click("kin-mode-" + m, [m]() -> void { kin_set_mode(m); });
+}
+auto: kin_inputs = "kin-order,kin-k,kin-a0,kin-tmax,kin-plot,kin-ea,kin-prefactor,kin-t1,kin-t2,kin-arr-plot,kin-dh,kin-prof-ea,kin-cat,kin-ea-cat,kin-gas,kin-mb-t1,kin-mb-t2,kin-mb-ea,kin-steps,kin-init,kin-mech-tmax,kin-data".split(",");
+for (long int: i = 0l; i < kin_inputs.size(); i += 1l) {
+    on_change(kin_inputs[i], []() -> void { kin_send(); });
+}
+on_click("kin-mech-go", []() -> void { kin_send(); });
+on_click("kin-fit-go", []() -> void { kin_send(); });
+
+string: acid_list = cmd("acidbase", "acids");
+fill_select("ab-species-acid", acid_list, "phosphoric acid");
+fill_select("ab-buffer-acid", acid_list, "acetic acid");
+auto: ab_modes = "mixture,titration,species,buffer".split(",");
+for (long int: i = 0l; i < ab_modes.size(); i += 1l) {
+    string: m = ab_modes[i];
+    on_click("ab-mode-" + m, [m]() -> void { ab_set_mode(m); });
+}
+auto: ab_inputs = "ab-vadd,ab-vunit,ab-t,ab-flask-acid,ab-flask-base,ab-tit-base,ab-tit-acid,ab-ca,ab-va,ab-ct,ab-vmax,ab-species-acid,ab-buffer-acid,ab-buf-ca,ab-buf-cb,ab-buf-add,ab-mix".split(",");
+for (long int: i = 0l; i < ab_inputs.size(); i += 1l) {
+    on_change(ab_inputs[i], []() -> void { ab_send(); });
+}
+on_click("ab-mix-go", []() -> void { ab_send(); });
+by("ab-vadd").on("input", [](grove::Event&: e) -> void { ab_send(); });
+for (long int: i = 0l; i < mx_count; i += 1l) {
+    string: n = i.to_string();
+    long int: row = i;
+    mx_setup(row);
+    on_change("mx-role-" + n, [row]() -> void {
+        mx_setup(row);
+        ab_send();
+    });
+    on_change("mx-how-" + n, [row]() -> void {
+        mx_setup(row);
+        ab_send();
+    });
+    auto: fields = "mx-acid-,mx-base-,mx-c-,mx-v-,mx-n-,mx-m-".split(",");
+    for (long int: k = 0l; k < fields.size(); k += 1l) {
+        on_change(fields[k] + n, []() -> void { ab_send(); });
+    }
+    on_click("mx-del-" + n, [n]() -> void {
+        by("mx-row-" + n).add_class("hidden");
+        ab_send();
+    });
+}
+on_change("mx-water", []() -> void { ab_send(); });
+on_click("mx-add", []() -> void {
+    for (long int: i = 0l; i < mx_count; i += 1l) {
+        grove::Element: r = by("mx-row-" + i.to_string());
+        if (r.has_class("hidden")) then {
+            r.remove_class("hidden");
+            ab_send();
+            return;
+        }
+    }
+});
+on_click("mx-build", []() -> void {
+    mx_typed = false;
+    seg_on("mx-build,mx-type", "mx-build");
+    show_if("mx-builder", true);
+    show_if("mx-typed", false);
+    ab_send();
+});
+on_click("mx-type", []() -> void {
+    mx_typed = true;
+    seg_on("mx-build,mx-type", "mx-type");
+    show_if("mx-builder", false);
+    show_if("mx-typed", true);
+    ab_send();
+});
+on_change("ab-flask-kind", []() -> void {
+    ab_titration_setup(true);
+    ab_send();
+});
+on_change("ab-combo", []() -> void {
+    ab_titration_setup(true);
+    ab_send();
+});
+ab_titration_setup(false);
+on_change("ab-poh", []() -> void {
+    if (by("ab-poh").value_bool()) then {
+        cmd("acidbase", "scale\tpoh");
+    } else then {
+        cmd("acidbase", "scale\tph");
+    }
+    ab_send();
+});
 
 grove::set_interval(200.0, []() -> void {
     if (!by("chemistry").is_current()) then {
@@ -1037,15 +1518,14 @@ grove::set_interval(200.0, []() -> void {
         string: v = cmd("phase", "version");
         if (v != phase_version) then {
             phase_version = v;
-            string: pv = cmd("phase", "point_values\t" + by("ph-t-unit").value_string() + "\t" + by("ph-p-unit").value_string());
-            by("ph-t").set_value_float(std::io::parse_float<short float>(field(pv, 0l)));
-            by("ph-p").set_value_float(std::io::parse_float<short float>(field(pv, 1l)));
+            phase_sync_point();
             fill_panel("ph-readouts", panel("phase", "readouts"));
+            fill_panel("ph-selection", panel("phase", "selection"));
         }
     }
 });
 
-metal_build_sliders();
+metal_preset("Cu Zn", "70 30");
 bond_send_tp();
 bond_saved_refresh();
 bond_refresh();
@@ -1061,3 +1541,5 @@ orb_refresh();
 cloud_refresh(true);
 element_refresh();
 units_build();
+kin_set_mode("rate");
+ab_set_mode("mixture");
