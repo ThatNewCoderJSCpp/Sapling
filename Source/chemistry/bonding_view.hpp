@@ -112,6 +112,7 @@ private:
     double ideal_length(int za, int zb, int order) const;
     void fill_hydrogens();
     void tidy();
+    std::string snap_to_correct();
     void apply_best_lewis();
     void apply_resonance(int index);
     bool load_smiles(const std::string& smiles, int charge, const std::string& name);
@@ -128,6 +129,8 @@ private:
     void restart_assembly();
     void step_lattice(double dt);
     std::string lattice_state() const;
+    double melting_now() const;
+    double boiling_now() const;
     void draw_lattice(Canvas& canvas, const Theme& theme);
     std::string ionic_readouts();
     std::string metallic_readouts();

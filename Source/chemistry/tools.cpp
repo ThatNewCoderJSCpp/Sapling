@@ -201,12 +201,25 @@ void reaction_details(std::ostringstream& o, const fc::Reaction& r, double t, co
             o << "#Thermodynamics at " << u.format(t, "temperature", 5) << "\n";
             const double dh = r.delta_h(t), ds = r.delta_s(t), dg = r.delta_g(t);
             o << "\xCE\x94H\t" << u.format(dh, "molar energy", 5) << (dh < 0 ? " (exothermic)" : " (endothermic)") << "\n";
+            o << "Heat per reaction as written\t" << u.format(std::fabs(dh), "energy", 5) << (dh < 0 ? " released" : " absorbed") << "\n";
             o << "\xCE\x94S\t" << u.format(ds, "molar entropy", 5) << "\n";
             o << "\xCE\x94G\t" << u.format(dg, "molar energy", 5) << (dg < 0 ? " (spontaneous)" : " (not spontaneous)") << "\n";
             const double k = r.equilibrium_constant(t);
             if (finite(k)) o << "K\t" << format_number(k, 4) << "\n";
             const double ts = r.spontaneity_temperature();
             if (finite(ts) && ts > 0.0) o << "Switches spontaneity at\t" << u.format(ts, "temperature", 4) << "\n";
+        } else {
+            const fc::ReactionHeat heat = fc::reaction_heat(r, t);
+            o << "#Heat\n";
+            if (heat.ok) {
+                o << "\xCE\x94H\t" << u.format(heat.delta_h, "molar energy", 5) << (heat.delta_h < 0 ? " (exothermic)" : heat.delta_h > 0 ? " (endothermic)" : "") << "\n";
+                o << "Heat per reaction as written\t" << u.format(std::fabs(heat.delta_h), "energy", 5) << (heat.delta_h < 0 ? " released" : " absorbed") << "\n";
+            } else {
+                o << "Not enough data to work out the heat: no enthalpy of formation for " << join(heat.missing, ", ") << "\n";
+            }
+            if (heat.ok) {
+            for (const std::string& n : heat.notes) o << n << "\n";
+        }
         }
     } catch (...) {
     }
@@ -248,7 +261,10 @@ std::string predict_tool(ChemShared& shared, const std::string& left, double t) 
     if (!p.kind.empty()) o << "Rule used\t" << p.kind << "\n";
     o << "Reaction type\t" << fc::to_string(p.type) << "\n";
     if (!p.explanation.empty()) o << p.explanation << "\n";
-    for (const std::string& n : p.notes) o << n << "\n";
+    for (const std::string& n : p.notes) {
+        if (n.size() > 1 && p.explanation.find(n.substr(1)) != std::string::npos) continue;
+        o << n << "\n";
+    }
     if (!p.no_reaction) {
         if (!p.complete_ionic.empty()) {
             o << "#Ionic equations\n";
@@ -306,13 +322,54 @@ std::string stoich_species(const std::string& equation) {
     try {
         fc::Reaction r = fc::Reaction::parse(trim(equation));
         if (!r.is_balanced()) r.balance();
+        std::vector<fc::Phase> phases;
+        try {
+            phases = fc::likely_phases(r, 298.15, 101325.0);
+        } catch (...) {
+        }
+        const auto code = [&](std::size_t i) -> std::string {
+            if (i >= phases.size()) return "";
+            switch (phases[i]) {
+                case fc::Phase::Solid: return "s";
+                case fc::Phase::Liquid: return "l";
+                case fc::Phase::Gas: return "g";
+                case fc::Phase::Aqueous: return "aq";
+                default: return "";
+            }
+        };
         std::size_t i = 0;
-        for (const auto& term : r.reactants()) o << i++ << "\t" << term.formula.display_string(true) << "\treactant\t" << format_number(term.coefficient, 6) << "\t" << format_number(term.formula.molar_mass(), 6) << "\n";
-        for (const auto& term : r.products()) o << i++ << "\t" << term.formula.display_string(true) << "\tproduct\t" << format_number(term.coefficient, 6) << "\t" << format_number(term.formula.molar_mass(), 6) << "\n";
+        for (const auto& term : r.reactants()) {
+            o << i << "\t" << term.formula.display_string(true) << "\treactant\t" << format_number(term.coefficient, 6) << "\t" << format_number(term.formula.molar_mass(), 6) << "\t" << code(i) << "\n";
+            ++i;
+        }
+        for (const auto& term : r.products()) {
+            o << i << "\t" << term.formula.display_string(true) << "\tproduct\t" << format_number(term.coefficient, 6) << "\t" << format_number(term.formula.molar_mass(), 6) << "\t" << code(i) << "\n";
+            ++i;
+        }
     } catch (const std::exception& e) {
         return std::string("error\t") + e.what();
     }
     return o.str();
+}
+
+double quantity_text(const std::string& text, fc::Dimension d, const std::string& default_unit, double fallback) {
+    const std::string t = trim(text);
+    if (t.empty()) return fallback;
+    std::size_t i = 0;
+    while (i < t.size() && (std::isdigit(static_cast<unsigned char>(t[i])) || t[i] == '.' || t[i] == '-' || t[i] == '+' || t[i] == 'e' || t[i] == 'E')) {
+        if ((t[i] == 'e' || t[i] == 'E') && (i + 1 >= t.size() || !(std::isdigit(static_cast<unsigned char>(t[i + 1])) || t[i + 1] == '-' || t[i + 1] == '+'))) break;
+        ++i;
+    }
+    const double v = num(t.substr(0, i), fc::NO_VALUE);
+    if (!finite(v)) return fallback;
+    const std::string unit = trim(t.substr(i));
+    if (unit.empty()) return to_si_or(v, default_unit, d, fallback);
+    std::string upper = unit;
+    upper[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(upper[0])));
+    for (const std::string& candidate : { unit, upper, std::string("\xC2\xB0") + upper }) {
+        if (fc::find_unit(candidate, d)) return to_si_or(v, candidate, d, fallback);
+    }
+    return fallback;
 }
 
 std::string stoich_tool(ChemShared& shared, const std::vector<std::string>& a) {
@@ -325,68 +382,200 @@ std::string stoich_tool(ChemShared& shared, const std::vector<std::string>& a) {
     } catch (const std::exception& e) {
         return std::string("#Stoichiometry\n!") + e.what() + "\n";
     }
-    const double t = to_si_or(num(arg(a, 3), 298.15), arg(a, 4).empty() ? "K" : arg(a, 4), fc::Dimension::Temperature, 298.15);
-    const double p = to_si_or(num(arg(a, 5), 1.0), arg(a, 6).empty() ? "atm" : arg(a, 6), fc::Dimension::Pressure, 101325.0);
+    fc::GasVessel vessel;
+    vessel.temperature = to_si_or(num(arg(a, 3), 298.15), arg(a, 4).empty() ? "K" : arg(a, 4), fc::Dimension::Temperature, 298.15);
+    vessel.pressure = to_si_or(num(arg(a, 5), 1.0), arg(a, 6).empty() ? "atm" : arg(a, 6), fc::Dimension::Pressure, 101325.0);
     const std::string out_unit = arg(a, 7).empty() ? u.get("mass") : arg(a, 7);
-    std::vector<fc::StoichiometryKnown> knowns;
+    vessel.mode = arg(a, 8) == "rigid" ? fc::GasVesselMode::Rigid : fc::GasVesselMode::Open;
+    if (!arg(a, 9).empty()) vessel.volume = to_si_or(num(arg(a, 9), fc::NO_VALUE), arg(a, 10).empty() ? "L" : arg(a, 10), fc::Dimension::Volume, fc::NO_VALUE);
+    vessel.over_water = arg(a, 11) == "1";
+    vessel.model = arg(a, 12) == "1" ? fc::GasModel::VanDerWaals : fc::GasModel::Ideal;
+    vessel.inert_moles = std::max(0.0, num(arg(a, 13), 0.0));
+    if (!trim(arg(a, 14)).empty()) vessel.inert_name = trim(arg(a, 14));
+    std::vector<fc::GasKnown> knowns;
+    std::vector<std::string> gres_notes_pending;
+    const std::size_t nr = r.reactants().size();
+    const auto term_at = [&](std::size_t i) -> fc::ReactionTerm* {
+        if (i < nr) return &r.reactants()[i];
+        if (i - nr < r.products().size()) return &r.products()[i - nr];
+        return nullptr;
+    };
+    for (const std::string& entry : split(arg(a, 2), ';')) {
+        const auto f = split(entry, '|');
+        if (f.size() > 9 && finite(num(f[0], fc::NO_VALUE))) {
+            const std::string state = trim(f[9]);
+            if (fc::ReactionTerm* term = term_at(static_cast<std::size_t>(num(f[0], 0)))) {
+                if (state == "s") term->formula.set_phase(fc::Phase::Solid);
+                else if (state == "l") term->formula.set_phase(fc::Phase::Liquid);
+                else if (state == "g") term->formula.set_phase(fc::Phase::Gas);
+                else if (state == "aq") term->formula.set_phase(fc::Phase::Aqueous);
+            }
+        }
+    }
     for (const std::string& entry : split(arg(a, 2), ';')) {
         const auto f = split(entry, '|');
         if (f.size() < 3 || trim(f[1]).empty()) continue;
-        fc::StoichiometryKnown k;
+        fc::GasKnown k;
         k.species = static_cast<std::size_t>(num(f[0], -1));
-        const std::string unit = trim(f[2]);
+        const fc::ReactionTerm* term = term_at(k.species);
+        if (!term) continue;
+        const fc::Phase state = term->formula.phase();
+        std::string unit = trim(f[2]);
         const double value = num(f[1], fc::NO_VALUE);
         if (!finite(value)) continue;
+        if (f.size() > 5) k.temperature = quantity_text(f[5], fc::Dimension::Temperature, "K", fc::NO_VALUE);
+        if (f.size() > 6) k.pressure = quantity_text(f[6], fc::Dimension::Pressure, "atm", fc::NO_VALUE);
+        if (f.size() > 7) k.volume = quantity_text(f[7], fc::Dimension::Volume, "L", fc::NO_VALUE);
+        if (f.size() > 8) {
+            const std::string role = trim(f[8]);
+            if (role == "start") k.role = fc::AmountRole::Start;
+            else if (role == "used") k.role = fc::AmountRole::Used;
+            else if (role == "left") k.role = fc::AmountRole::Left;
+            else if (role == "made") k.role = fc::AmountRole::Made;
+            else if (role == "end") k.role = fc::AmountRole::End;
+        }
+        bool over_water = false, gas_only = false, liquid = false;
+        const auto strip = [&](const std::string& suffix) {
+            if (unit.size() > suffix.size() && unit.compare(unit.size() - suffix.size(), suffix.size(), suffix) == 0) {
+                unit = trim(unit.substr(0, unit.size() - suffix.size()));
+                return true;
+            }
+            return false;
+        };
+        if (strip("over water")) over_water = true;
+        else if (strip("of gas") || strip("gas")) gas_only = true;
+        else if (strip("of liquid") || strip("liquid")) liquid = true;
+        else if (strip("of solution") || strip("solution")) {
+        } else strip("partial");
+        if (state == fc::Phase::Liquid && !gas_only && !over_water) liquid = true;
+        if (state == fc::Phase::Gas) gas_only = true;
         if (fc::find_unit(unit, fc::Dimension::Mass)) {
-            k.kind = fc::AmountKind::Mass;
+            k.kind = fc::GasAmountKind::Mass;
             k.value = to_si_or(value, unit, fc::Dimension::Mass, value);
         } else if (unit == "particles") {
-            k.kind = fc::AmountKind::Particles;
+            k.kind = fc::GasAmountKind::Particles;
             k.value = value;
         } else if (fc::find_unit(unit, fc::Dimension::Amount)) {
-            k.kind = fc::AmountKind::Moles;
+            k.kind = fc::GasAmountKind::Moles;
             k.value = to_si_or(value, unit, fc::Dimension::Amount, value);
+        } else if (fc::find_unit(unit, fc::Dimension::Pressure)) {
+            k.kind = fc::GasAmountKind::PartialPressure;
+            k.value = to_si_or(value, unit, fc::Dimension::Pressure, value);
         } else if (fc::find_unit(unit, fc::Dimension::Volume)) {
             k.value = to_si_or(value, unit, fc::Dimension::Volume, value);
-            if (f.size() >= 5 && finite(num(f[3], fc::NO_VALUE))) {
-                k.kind = fc::AmountKind::SolutionVolume;
+            if (liquid && !over_water) {
+                double density = fc::NO_VALUE;
+                fc::Formula plain = term->formula;
+                plain.set_phase(fc::Phase::Unknown);
+                for (const fc::Substance* sub : fc::find_substances(plain)) {
+                    density = sub->liquid_density(vessel.temperature);
+                    if (finite(density)) break;
+                }
+                if (!finite(density)) return "#Stoichiometry\n^Can't solve this: there's no liquid density for " + pretty_formula(plain.display_string(false)) + ", so give it as a mass or in moles instead of a volume\n";
+                k.kind = fc::GasAmountKind::Mass;
+                k.value = k.value * density;
+                gres_notes_pending.push_back(pretty_formula(plain.display_string(false)) + ": " + u.format(value * to_si_or(1.0, unit, fc::Dimension::Volume, 1.0), "volume", 5) + " of liquid \xC3\x97 " + format_number(density / 1000.0, 4) + " g/mL = " + format_number(k.value * 1000.0, 5) + " g");
+            } else if (over_water) {
+                k.kind = fc::GasAmountKind::CollectedOverWater;
+            } else if (!gas_only && f.size() >= 5 && finite(num(f[3], fc::NO_VALUE))) {
+                k.kind = fc::GasAmountKind::SolutionVolume;
                 k.molarity = to_si_or(num(f[3], 0.0), trim(f[4]).empty() ? "M" : trim(f[4]), fc::Dimension::Concentration, 0.0);
             } else {
-                k.kind = fc::AmountKind::GasVolume;
+                k.kind = fc::GasAmountKind::GasVolume;
             }
         } else {
             continue;
         }
         knowns.push_back(k);
     }
-    if (knowns.empty()) return "#Stoichiometry\nEnter an amount for at least one species (a mass, moles, a gas volume, or a solution volume with its molarity).\n";
-    fc::StoichiometryResult res;
+    if (knowns.empty()) return "#Stoichiometry\nEnter an amount for at least one species: a mass, moles, a gas volume, a partial pressure, gas collected over water, or a solution volume with its molarity.\n";
+    fc::GasStoichiometryResult gres;
     try {
-        res = fc::solve_stoichiometry(r, knowns, t, p);
+        gres = fc::solve_gas_stoichiometry(r, knowns, vessel);
     } catch (const std::exception& e) {
         return std::string("#Stoichiometry\n!") + e.what() + "\n";
     }
-    if (!res.ok) return "#Stoichiometry\n!" + res.message + "\n";
+    if (!gres.ok) return "#Stoichiometry\n^Can't solve this: " + gres.message + "\n";
+    const fc::StoichiometryResult& res = gres.stoichiometry;
+    const double t = vessel.temperature;
     o << "#Result\n";
     o << "Equation\t" << res.reaction.to_unicode_string() << "\n";
     if (res.limiting >= 0 && static_cast<std::size_t>(res.limiting) < res.species.size()) o << "Limiting reactant\t" << pretty_formula(res.species[static_cast<std::size_t>(res.limiting)].formula) << "\n";
     o << "Extent of reaction\t" << format_number(res.extent, 5) << " mol\n";
+    if (finite(res.percent_yield)) o << "Percent yield\t" << format_number(res.percent_yield, 4) << "%\n";
     if (!res.message.empty()) o << res.message << "\n";
+    for (const std::string& assumption : res.assumptions) o << "~" << assumption << "\n";
+    const auto amount = [&](double moles, double molar_mass) {
+        return fc::format_quantity(moles * molar_mass / 1000.0, fc::Dimension::Mass, out_unit, 5) + " (" + format_number(moles, 5) + " mol)";
+    };
     o << "#Amounts (" << out_unit << ")\n";
-    for (const fc::StoichiometrySpecies& s : res.species) {
-        const double grams = s.final_moles * s.molar_mass;
+    for (std::size_t i = 0; i < res.species.size(); ++i) {
+        const fc::StoichiometrySpecies& sp = res.species[i];
         std::string line;
-        if (s.reactant) {
-            line = "used " + u.format(s.reacted_moles * s.molar_mass / 1000.0, "mass", 5) + ", left " + fc::format_quantity(grams / 1000.0, fc::Dimension::Mass, out_unit, 5) + " (" + format_number(s.final_moles, 5) + " mol)";
+        if (sp.reactant) {
+            line = "start " + amount(sp.start_moles, sp.molar_mass) + ", used " + amount(sp.reacted_moles, sp.molar_mass) + ", left " + amount(sp.final_moles, sp.molar_mass);
+        } else if (finite(sp.start_moles) && sp.start_moles > 1e-15) {
+            line = "start " + amount(sp.start_moles, sp.molar_mass) + ", made " + amount(sp.reacted_moles, sp.molar_mass) + ", end " + amount(sp.final_moles, sp.molar_mass);
         } else {
-            line = "made " + fc::format_quantity(grams / 1000.0, fc::Dimension::Mass, out_unit, 5) + " (" + format_number(s.final_moles, 5) + " mol)";
-            if (s.gas) line += ", " + u.format(s.final_moles * 8.314462618 * t / p, "volume", 4) + " as gas";
+            line = "made " + amount(sp.final_moles, sp.molar_mass);
         }
-        o << pretty_formula(s.formula) << (s.limiting ? " (limiting)" : "") << "\t" << line << "\n";
+        o << pretty_formula(sp.formula) << (sp.limiting ? " (limiting)" : sp.assumed ? " (assumed)" : "") << "\t" << line << "\n";
     }
-    if (!res.steps.empty()) {
+    try {
+        const fc::ReactionHeat heat = fc::reaction_heat(res.reaction, t);
+        o << "#Heat\n";
+        if (heat.ok) {
+            o << "\xCE\x94H per reaction\t" << u.format(heat.delta_h, "molar energy", 5) << (heat.delta_h < 0 ? " (exothermic)" : heat.delta_h > 0 ? " (endothermic)" : "") << "\n";
+            const double q = heat.delta_h * res.extent;
+            o << "Heat for these amounts\t" << u.format(std::fabs(q), "energy", 5) << (q < 0 ? " released (the surroundings warm up)" : q > 0 ? " absorbed (the surroundings cool down)" : "") << "\n";
+        } else {
+            o << "Not enough data to work out the heat: no enthalpy of formation for " << join(heat.missing, ", ") << "\n";
+        }
+        if (heat.ok) {
+            for (const std::string& n : heat.notes) o << n << "\n";
+        }
+    } catch (...) {
+    }
+    const auto gas_table = [&](const std::vector<fc::GasSpeciesState>& gases) {
+        for (const fc::GasSpeciesState& g : gases) {
+            std::string line = format_number(g.moles, 5) + " mol, x = " + format_number(g.mole_fraction, 4) + ", P = " + u.format(g.partial_pressure, "pressure", 4);
+            if (vessel.mode == fc::GasVesselMode::Open) line += ", " + u.format(g.volume, "volume", 4) + " at these conditions";
+            if (g.condensed_moles > 1e-12) line += " (" + format_number(g.condensed_moles, 4) + " mol condensed)";
+            o << (g.inert ? g.formula : pretty_formula(g.formula)) << "\t" << line << "\n";
+        }
+    };
+    const std::string where = vessel.mode == fc::GasVesselMode::Rigid ? "in the " + u.format(vessel.volume, "volume", 4) + " container at " + u.format(t, "temperature", 4) : "at " + u.format(t, "temperature", 4) + " and " + u.format(vessel.pressure, "pressure", 4) + (vessel.over_water ? ", collected over water" : "");
+    if (!gres.before.empty()) {
+        o << "#Gases before (" << where << ")\n";
+        gas_table(gres.before);
+        o << "Total gas\t" << format_number(gres.moles_before, 5) << " mol";
+        if (vessel.mode == fc::GasVesselMode::Rigid) o << ", P = " << u.format(gres.pressure_before, "pressure", 5);
+        else o << ", V = " << u.format(gres.volume_before, "volume", 5);
+        o << "\n";
+    }
+    if (!gres.after.empty()) {
+        o << "#Gases after (" << where << ")\n";
+        gas_table(gres.after);
+        o << "Total gas\t" << format_number(gres.moles_after, 5) << " mol";
+        if (vessel.mode == fc::GasVesselMode::Rigid) o << ", P = " << u.format(gres.pressure_after, "pressure", 5);
+        else o << ", V = " << u.format(gres.volume_after, "volume", 5);
+        o << "\n";
+        if (finite(gres.water_vapor)) {
+            o << "Water vapor\t" << u.format(gres.water_vapor, "pressure", 4) << "\n";
+            o << "Dry gas pressure\t" << u.format(gres.dry_gas_pressure, "pressure", 5) << "\n";
+            o << "Wet gas collected\t" << u.format(gres.volume_after, "volume", 5) << "\n";
+        }
+        if (vessel.mode == fc::GasVesselMode::Rigid && finite(gres.pressure_before) && gres.pressure_before > 0) o << "Pressure change\t" << u.format(gres.pressure_after - gres.pressure_before, "pressure", 4) << " (\xC3\x97" << format_number(gres.pressure_after / gres.pressure_before, 4) << ")\n";
+        if (vessel.mode == fc::GasVesselMode::Open && finite(gres.volume_before) && gres.volume_before > 0 && !vessel.over_water) o << "Volume change\t" << u.format(gres.volume_after - gres.volume_before, "volume", 4) << "\n";
+    }
+    if (!gres.notes.empty()) {
+        o << "#Gas notes\n";
+        for (const std::string& n : gres.notes) o << n << "\n";
+    }
+    if (!gres.steps.empty() || !gres_notes_pending.empty()) {
         o << "#Steps\n";
-        for (const std::string& s : res.steps) o << s << "\n";
+        for (const std::string& s2 : gres_notes_pending) o << s2 << "\n";
+        for (const std::string& s2 : gres.steps) o << s2 << "\n";
     }
     return o.str();
 }

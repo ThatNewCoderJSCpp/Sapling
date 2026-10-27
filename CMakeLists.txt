@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.18)
-project(sapling VERSION 0.1.7 DESCRIPTION "Sapling: a physics and chemistry sandbox built with Fizmo, Grove and Walnut" LANGUAGES C CXX)
+project(sapling VERSION 0.1.8 DESCRIPTION "Sapling: a physics and chemistry sandbox built with Fizmo, Grove and Walnut" LANGUAGES C CXX)
 
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
@@ -11,9 +11,9 @@ option(SAPLING_WITH_WALNUT "Build Walnut alongside Grove so Sapling's Walnut scr
 option(SAPLING_BUILD_TESTS "Build the Sapling tests" ON)
 option(SAPLING_PACKAGE "Make release packages: sapling with its window and compiled script built in, linked so it runs without a compiler" OFF)
 option(SAPLING_BUNDLE "Run sapling-host --bundle as part of the build to make sapling with its window built in (turn off when cross-compiling, then bundle on the target)" ON)
-set(SAPLING_FIZMO_TAG "v0.3.6" CACHE STRING "Fizmo git tag to fetch (needs the numerics and chemistry components)")
-set(SAPLING_GROVE_TAG "v0.2.7" CACHE STRING "Grove git tag to fetch")
-set(SAPLING_WALNUT_TAG "v0.2.8" CACHE STRING "Walnut git tag Grove fetches")
+set(SAPLING_FIZMO_TAG "v0.3.7" CACHE STRING "Fizmo git tag to fetch (needs the numerics and chemistry components)")
+set(SAPLING_GROVE_TAG "v0.2.8" CACHE STRING "Grove git tag to fetch")
+set(SAPLING_WALNUT_TAG "v0.2.9" CACHE STRING "Walnut git tag Grove fetches")
 
 if(ANDROID)
     set(SAPLING_WITH_WALNUT OFF CACHE BOOL "" FORCE)
@@ -76,6 +76,8 @@ add_library(sapling_core STATIC
     Source/chemistry/bonding_lattice.cpp
     Source/chemistry/bonding_view.cpp
     Source/chemistry/kinetics_views.cpp
+    Source/chemistry/spectra_view.cpp
+    Source/chemistry/network_view.cpp
     Source/chemistry/molecule_draw.cpp
     Source/chemistry/orbital_views.cpp
     Source/chemistry/phase_view.cpp

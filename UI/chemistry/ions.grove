@@ -41,8 +41,8 @@
                 <column id="name-out" class="panel"></column>
                 <h3 class="side-title">Combine two ions</h3>
                 <row class="line">
-                    <input_string id="combine-cation" class="grow" placeholder="cation: Al3+, ammonium" />
-                    <input_string id="combine-anion" class="grow" placeholder="anion: SO4 2-, phosphate" />
+                    <input_formula id="combine-cation" class="grow" placeholder="cation: Al3+, ammonium" />
+                    <input_formula id="combine-anion" class="grow" placeholder="anion: SO4 2-, phosphate" />
                     <button id="combine-go" class="primary small-btn">Combine</button>
                 </row>
                 <column id="combine-out" class="panel"></column>

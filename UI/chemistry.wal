@@ -44,6 +44,7 @@ function ions_fill_list() -> void;
 function ions_show(const string&: name) -> void;
 function st_load(const string&: equation) -> void;
 function st_solve() -> void;
+function st_units(const string&: idx) -> void;
 function sv_fill_equations() -> void;
 function sv_load_equation() -> void;
 function sv_solve() -> void;
@@ -58,6 +59,7 @@ function phase_sync_point() -> void;
 function phb_set_mode(const string&: mode) -> void;
 function phb_send_metals() -> void;
 string: phb_mode = "covalent";
+string: net_version = "";
 function orb_refresh() -> void;
 function cloud_refresh(bool: orbitals) -> void;
 string: cloud_keep = "2,1,0";
@@ -66,6 +68,13 @@ function kin_set_mode(const string&: mode) -> void;
 function kin_send() -> void;
 function ab_set_mode(const string&: mode) -> void;
 function ab_send() -> void;
+function spe_build_sliders() -> void;
+function spe_normalize(const string&: changed) -> void;
+function spe_send_mix() -> void;
+function spe_set_mode(const string&: mode) -> void;
+function spe_send_common() -> void;
+function spe_refresh(const string&: reply) -> void;
+string: spe_mode = "mix";
 function mx_setup(long int: i) -> void;
 function mx_spec() -> string;
 bool: mx_typed = false;
@@ -166,6 +175,14 @@ function fill_panel(const string&: id, const string&: body) -> void {
         } else if (f[0] == "n") then {
             grove::Element: line = cel("row", "panel-line", "");
             line.append_child(cel("text", "panel-note", f[1]));
+            box.append_child(line);
+        } else if (f[0] == "a") then {
+            grove::Element: line = cel("row", "panel-line", "");
+            line.append_child(cel("text", "panel-assume", f[1]));
+            box.append_child(line);
+        } else if (f[0] == "x") then {
+            grove::Element: line = cel("row", "panel-line", "");
+            line.append_child(cel("text", "panel-fail", f[1]));
             box.append_child(line);
         } else if (f.size() >= 3l) then {
             grove::Element: row = cel("row", "panel-row", "");
@@ -279,6 +296,11 @@ function status(const string&: id, const string&: reply, const string&: good) ->
 } end function status
 
 function bond_refresh() -> void {
+    if (bond_mode == "network") then {
+        fill_panel("bond-readouts", panel("network", "readouts"));
+        fill_panel("bond-selection", panel("network", "selection"));
+        return;
+    }
     fill_panel("bond-readouts", panel("bond", "readouts"));
     fill_panel("bond-selection", panel("bond", "selection"));
     if (bond_mode == "covalent") then {
@@ -299,12 +321,20 @@ function bond_sync_neutrons() -> void {
 
 function bond_set_mode(const string&: mode) -> void {
     bond_mode = mode;
-    cmd("bond", "mode\t" + mode);
-    seg_on("bond-mode-covalent,bond-mode-ionic,bond-mode-metallic", "bond-mode-" + mode);
+    if (mode != "network") then {
+        cmd("bond", "mode\t" + mode);
+    }
+    seg_on("bond-mode-covalent,bond-mode-ionic,bond-mode-metallic,bond-mode-network", "bond-mode-" + mode);
     show_if("cov-controls", mode == "covalent");
     show_if("ion-controls", mode == "ionic");
     show_if("metal-controls", mode == "metallic");
-    show_if("lattice-controls", mode != "covalent");
+    show_if("net-controls", mode == "network");
+    show_if("lattice-controls", mode == "ionic" || mode == "metallic");
+    show_if("bond-view-row", mode != "network");
+    show_if("chem-bond-view", mode != "network");
+    show_if("chem-network-view", mode == "network");
+    show_if("bond-tp-group", mode != "network");
+    show_if("bond-save-group", mode != "network");
     by("opt-neighbors").set_value_bool(mode == "ionic");
     bond_saved_refresh();
     bond_refresh();
@@ -477,6 +507,50 @@ function ions_show(const string&: name) -> void {
     fill_panel("ions-structure", panel("structure", "readouts"));
 } end function ions_show
 
+function st_units(const string&: idx) -> void {
+    string: state = by("st-state-" + idx).value_string();
+    grove::Element: unit = by("st-unit-" + idx);
+    string: previous = unit.value_string();
+    cclear(unit);
+    string: first = "g";
+    if (state == "aq") then {
+        add_option(unit, "mL", "mL of solution");
+        add_option(unit, "L", "L of solution");
+        first = "mL";
+    } else if (state == "g") then {
+        add_option(unit, "L of gas", "L of gas");
+        add_option(unit, "mL of gas", "mL of gas");
+        add_option(unit, "L over water", "L collected over water");
+        add_option(unit, "mL over water", "mL collected over water");
+        add_option(unit, "atm", "atm (partial pressure)");
+        add_option(unit, "kPa", "kPa (partial pressure)");
+        add_option(unit, "torr", "torr (partial pressure)");
+        add_option(unit, "mmHg", "mmHg (partial pressure)");
+        add_option(unit, "bar", "bar (partial pressure)");
+        first = "L of gas";
+    } else if (state == "l") then {
+        add_option(unit, "mL of liquid", "mL of liquid");
+        add_option(unit, "L of liquid", "L of liquid");
+        first = "mL of liquid";
+    }
+    add_option(unit, "g", "");
+    add_option(unit, "kg", "");
+    add_option(unit, "mg", "");
+    if (state == "s" || state.empty()) then {
+        add_option(unit, "lb", "");
+    }
+    add_option(unit, "mol", "");
+    add_option(unit, "mmol", "");
+    add_option(unit, "particles", "");
+    if (previous == "g" || previous == "kg" || previous == "mg" || previous == "mol" || previous == "mmol" || previous == "particles") then {
+        unit.set_value_string(previous);
+    } else then {
+        unit.set_value_string(first);
+    }
+    show_if("st-mol-" + idx, state == "aq");
+    show_if("st-cond-" + idx, state == "g");
+} end function st_units
+
 function st_load(const string&: equation) -> void {
     by("st-equation").set_value_string(equation);
     grove::Element: box = by("st-species");
@@ -494,25 +568,52 @@ function st_load(const string&: equation) -> void {
             continue;
         }
         string: idx = f[0];
+        string: likely = "";
+        if (f.size() > 5l) then {
+            likely = f[5];
+        }
+        grove::Element: head = cel("row", "species-row", "");
+        head.append_child(cel("text", "species-name grow", f[3] + " " + f[1]));
+        grove::Element: state = grove::create_element("input_select");
+        state.set_attribute("id", "st-state-" + idx);
+        state.set_attribute("class", "state-select");
+        add_option(state, "s", "(s) solid");
+        add_option(state, "l", "(l) liquid");
+        add_option(state, "g", "(g) gas");
+        add_option(state, "aq", "(aq) dissolved");
+        if (likely.empty()) then {
+            state.set_value_string("s");
+        } else then {
+            state.set_value_string(likely);
+        }
+        state.on("change", [idx](grove::Event&: e) -> void {
+            st_units(idx);
+        });
+        head.append_child(state);
+        grove::Element: role = grove::create_element("input_select");
+        role.set_attribute("id", "st-role-" + idx);
+        role.set_attribute("class", "role-select");
+        if (f[2] == "reactant") then {
+            add_option(role, "start", "at the start");
+            add_option(role, "used", "used up");
+            add_option(role, "left", "left over");
+            role.set_value_string("start");
+        } else then {
+            add_option(role, "made", "made");
+            add_option(role, "end", "there at the end");
+            add_option(role, "start", "there at the start");
+            role.set_value_string("made");
+        }
+        head.append_child(role);
+        box.append_child(head);
         grove::Element: row = cel("row", "species-row", "");
-        row.append_child(cel("text", "species-name", f[3] + " " + f[1]));
         grove::Element: amount = grove::create_element("input_string");
         amount.set_attribute("id", "st-amt-" + idx);
         amount.set_attribute("class", "grow");
-        amount.set_attribute("placeholder", f[2] + ", " + f[4] + " g/mol");
+        amount.set_attribute("placeholder", "blank: worked out (" + f[4] + " g/mol)");
         row.append_child(amount);
         grove::Element: unit = grove::create_element("input_select");
         unit.set_attribute("id", "st-unit-" + idx);
-        add_option(unit, "g", "");
-        add_option(unit, "kg", "");
-        add_option(unit, "mg", "");
-        add_option(unit, "lb", "");
-        add_option(unit, "mol", "");
-        add_option(unit, "mmol", "");
-        add_option(unit, "particles", "");
-        add_option(unit, "L", "L (gas, or solution)");
-        add_option(unit, "mL", "mL (gas, or solution)");
-        unit.set_value_string("g");
         row.append_child(unit);
         grove::Element: molar = grove::create_element("input_string");
         molar.set_attribute("id", "st-mol-" + idx);
@@ -520,6 +621,26 @@ function st_load(const string&: equation) -> void {
         molar.set_attribute("placeholder", "M");
         row.append_child(molar);
         box.append_child(row);
+        grove::Element: cond = cel("row", "species-row", "");
+        cond.set_attribute("id", "st-cond-" + idx);
+        cond.append_child(cel("text", "muted", "measured at"));
+        grove::Element: tc = grove::create_element("input_string");
+        tc.set_attribute("id", "st-tc-" + idx);
+        tc.set_attribute("class", "grow");
+        tc.set_attribute("placeholder", "T, e.g. 27 C");
+        cond.append_child(tc);
+        grove::Element: pc = grove::create_element("input_string");
+        pc.set_attribute("id", "st-pc-" + idx);
+        pc.set_attribute("class", "grow");
+        pc.set_attribute("placeholder", "P, e.g. 750 torr");
+        cond.append_child(pc);
+        grove::Element: vc = grove::create_element("input_string");
+        vc.set_attribute("id", "st-vc-" + idx);
+        vc.set_attribute("class", "grow");
+        vc.set_attribute("placeholder", "in V, e.g. 5 L");
+        cond.append_child(vc);
+        box.append_child(cond);
+        st_units(idx);
         st_count += 1l;
     }
 } end function st_load
@@ -529,15 +650,19 @@ function st_solve() -> void {
     for (long int: i = 0l; i < st_count; i += 1l) {
         string: idx = i.to_string();
         string: v = by("st-amt-" + idx).value_string();
-        if (v.empty()) then {
-            continue;
-        }
-        spec = spec + idx + "|" + v + "|" + by("st-unit-" + idx).value_string() + "|" + by("st-mol-" + idx).value_string() + "|M;";
+        spec = spec + idx + "|" + v + "|" + by("st-unit-" + idx).value_string() + "|" + by("st-mol-" + idx).value_string() + "|M|" + by("st-tc-" + idx).value_string() + "|" + by("st-pc-" + idx).value_string() + "|" + by("st-vc-" + idx).value_string() + "|" + by("st-role-" + idx).value_string() + "|" + by("st-state-" + idx).value_string() + ";";
     }
     string: args = "stoich\t" + by("st-equation").value_string() + "\t" + spec;
     args = args + "\t" + by("st-t").value_float().to_string() + "\t" + by("st-t-unit").value_string();
     args = args + "\t" + by("st-p").value_float().to_string() + "\t" + by("st-p-unit").value_string();
     args = args + "\t" + by("st-out-unit").value_string();
+    string: vol = "";
+    if (by("st-vol").value_float() > static_cast<short float>(0.0)) then {
+        vol = by("st-vol").value_float().to_string();
+    }
+    args = args + "\t" + by("st-mode").value_string() + "\t" + vol + "\t" + by("st-vol-unit").value_string();
+    args = args + "\t" + b01(by("st-water").value_bool()) + "\t" + b01(by("st-real").value_bool());
+    args = args + "\t" + by("st-inert").value_float().to_string() + "\t" + by("st-inert-name").value_string();
     fill_panel("st-out", toolpanel(args));
 } end function st_solve
 
@@ -971,6 +1096,136 @@ function ab_send() -> void {
     fill_panel("ab-readouts", panel("acidbase", "readouts"));
 } end function ab_send
 
+function spe_refresh(const string&: reply) -> void {
+    if (field(reply, 0l) == "error") then {
+        by("spe-status").set_inner_text(field(reply, 1l));
+    } else then {
+        by("spe-status").set_inner_text(field(reply, 1l));
+    }
+    fill_panel("spe-readouts", panel("spectra", "readouts"));
+} end function spe_refresh
+
+function spe_send_common() -> void {
+    cmd("spectra", "range\t" + by("spe-start").value_float().to_string() + "\t" + by("spe-end").value_float().to_string());
+    cmd("spectra", "fwhm\t" + by("spe-fwhm").value_float().to_string());
+    cmd("spectra", "candidates\t" + by("spe-candidates").value_string());
+    cmd("spectra", "kind\t" + by("spe-kind").value_string());
+} end function spe_send_common
+
+function spe_build_sliders() -> void {
+    grove::Element: box = by("spe-fractions");
+    cclear(box);
+    auto: syms = by("spe-elements").value_string().split(" ");
+    long int: n = 0l;
+    for (long int: i = 0l; i < syms.size(); i += 1l) {
+        if (!syms[i].empty()) then {
+            n += 1l;
+        }
+    }
+    if (n == 0l) then {
+        return;
+    }
+    short float: share = round1(static_cast<short float>(100.0) / static_cast<short float>(n));
+    for (long int: i = 0l; i < syms.size(); i += 1l) {
+        string: sym = syms[i];
+        if (sym.empty()) then {
+            continue;
+        }
+        grove::Element: row = cel("row", "line", "");
+        row.append_child(cel("text", "label-w", sym));
+        grove::Element: sl = grove::create_element("input_slider");
+        sl.set_attribute("id", "spf-" + sym);
+        sl.set_attribute("class", "grow");
+        sl.set_attribute("min", "0");
+        sl.set_attribute("max", "100");
+        sl.set_attribute("step", "0.1");
+        sl.set_value_float(share);
+        sl.on("input", [sym](grove::Event&: e) -> void {
+            spe_normalize(sym);
+            spe_send_mix();
+        });
+        sl.on("change", [sym](grove::Event&: e) -> void {
+            spe_normalize(sym);
+            spe_send_mix();
+        });
+        row.append_child(sl);
+        box.append_child(row);
+    }
+} end function spe_build_sliders
+
+function spe_normalize(const string&: changed) -> void {
+    auto: syms = by("spe-elements").value_string().split(" ");
+    short float: hundred = static_cast<short float>(100.0);
+    short float: zero = static_cast<short float>(0.0);
+    short float: fixed_value = by("spf-" + changed).value_float();
+    short float: others = zero;
+    long int: count = 0l;
+    for (long int: i = 0l; i < syms.size(); i += 1l) {
+        if (syms[i].empty() || syms[i] == changed || !by("spf-" + syms[i]).exists()) then {
+            continue;
+        }
+        others = others + by("spf-" + syms[i]).value_float();
+        count += 1l;
+    }
+    if (count == 0l) then {
+        fixed_value = hundred;
+    }
+    short float: left = hundred - fixed_value;
+    short float: used = zero;
+    long int: seen = 0l;
+    for (long int: i = 0l; i < syms.size(); i += 1l) {
+        if (syms[i].empty() || syms[i] == changed || !by("spf-" + syms[i]).exists()) then {
+            continue;
+        }
+        seen += 1l;
+        short float: v = zero;
+        if (seen == count) then {
+            v = left - used;
+        } else if (others > zero) then {
+            v = round1(by("spf-" + syms[i]).value_float() * left / others);
+        } else then {
+            v = round1(left / static_cast<short float>(count));
+        }
+        if (v < zero) then {
+            v = zero;
+        }
+        used = used + v;
+        by("spf-" + syms[i]).set_value_float(v);
+    }
+    by("spf-" + changed).set_value_float(fixed_value);
+} end function spe_normalize
+
+function spe_send_mix() -> void {
+    auto: syms = by("spe-elements").value_string().split(" ");
+    string: spec = "";
+    for (long int: i = 0l; i < syms.size(); i += 1l) {
+        if (syms[i].empty() || !by("spf-" + syms[i]).exists()) then {
+            continue;
+        }
+        spec = spec + syms[i] + " " + by("spf-" + syms[i]).value_float().to_string() + ";";
+    }
+    spe_send_common();
+    spe_refresh(cmd("spectra", "mix\t" + spec));
+} end function spe_send_mix
+
+function spe_set_mode(const string&: mode) -> void {
+    spe_mode = mode;
+    seg_on("spe-mode-mix,spe-mode-identify,spe-mode-color", "spe-mode-" + mode);
+    show_if("spe-mix", mode == "mix");
+    show_if("spe-identify", mode == "identify");
+    show_if("spe-color", mode == "color");
+    show_if("spe-candidates-box", mode != "mix");
+    if (mode == "mix") then {
+        spe_send_mix();
+    } else if (mode == "identify") then {
+        spe_send_common();
+        spe_refresh(cmd("spectra", "observed\t" + by("spe-observed").value_string()));
+    } else then {
+        spe_send_common();
+        spe_refresh(cmd("spectra", "color\t" + by("spe-target").value_color() + "\t" + by("spe-color-basis").value_string()));
+    }
+} end function spe_set_mode
+
 function units_build() -> void {
     grove::Element: box = by("units-prefs");
     cclear(box);
@@ -1006,6 +1261,7 @@ function refresh_all() -> void {
     fill_panel("ions-structure", panel("structure", "readouts"));
     fill_panel("kin-readouts", panel("kinetics", "readouts"));
     fill_panel("ab-readouts", panel("acidbase", "readouts"));
+    fill_panel("spe-readouts", panel("spectra", "readouts"));
 } end function refresh_all
 
 fill_units();
@@ -1013,6 +1269,24 @@ fill_units();
 on_click("bond-mode-covalent", []() -> void { bond_set_mode("covalent"); });
 on_click("bond-mode-ionic", []() -> void { bond_set_mode("ionic"); });
 on_click("bond-mode-metallic", []() -> void { bond_set_mode("metallic"); });
+on_click("bond-mode-network", []() -> void { bond_set_mode("network"); });
+on_change("net-structure", []() -> void {
+    cmd("network", "structure\t" + by("net-structure").value_string());
+    bond_refresh();
+});
+on_change("net-size", []() -> void {
+    cmd("network", "size\t" + by("net-size").value_float().to_string());
+    bond_refresh();
+});
+on_change("net-weak", []() -> void { cmd("network", "weak\t" + b01(by("net-weak").value_bool())); });
+function net_send_tp() -> void {
+    cmd("network", "tp\t" + by("net-t").value_float().to_string() + "\t" + by("net-t-unit").value_string() + "\t" + by("net-p").value_float().to_string() + "\t" + by("net-p-unit").value_string());
+    bond_refresh();
+} end function net_send_tp
+on_change("net-t", []() -> void { net_send_tp(); });
+on_change("net-t-unit", []() -> void { net_send_tp(); });
+on_change("net-p", []() -> void { net_send_tp(); });
+on_change("net-p-unit", []() -> void { net_send_tp(); });
 on_click("bond-view-2d", []() -> void {
     cmd("bond", "view\t2d");
     seg_on("bond-view-2d,bond-view-3d", "bond-view-2d");
@@ -1034,6 +1308,7 @@ on_change("cov-element", []() -> void { cmd("bond", "element\t" + by("cov-elemen
 on_change("cov-charge", []() -> void { cmd("bond", "charge\t" + by("cov-charge").value_integer().to_string()); });
 on_click("cov-fill", []() -> void { cmd("bond", "fill_h"); });
 on_click("cov-tidy", []() -> void { cmd("bond", "tidy"); });
+on_click("cov-snap", []() -> void { cmd("bond", "snap"); });
 on_click("cov-fix", []() -> void { cmd("bond", "fix_lewis"); });
 on_click("cov-undo", []() -> void { cmd("bond", "undo"); });
 on_click("cov-redo", []() -> void { cmd("bond", "redo"); });
@@ -1392,11 +1667,17 @@ on_change("cl-orbital", []() -> void {
 on_click("cl-2d", []() -> void {
     cmd("cloud", "view\t2d");
     seg_on("cl-2d,cl-3d", "cl-2d");
+    show_if("cl-style2-row", true);
+    show_if("cl-style3-row", false);
 });
 on_click("cl-3d", []() -> void {
     cmd("cloud", "view\t3d");
     seg_on("cl-2d,cl-3d", "cl-3d");
+    show_if("cl-style2-row", false);
+    show_if("cl-style3-row", true);
 });
+on_change("cl-style3", []() -> void { cmd("cloud", "style3\t" + by("cl-style3").value_string()); });
+on_change("cl-style2", []() -> void { cmd("cloud", "style2\t" + by("cl-style2").value_string()); });
 on_change("cl-plane", []() -> void { cmd("cloud", "plane\t" + by("cl-plane").value_string()); });
 on_change("cl-points", []() -> void { cmd("cloud", "points\t" + by("cl-points").value_float().to_string()); });
 on_change("cl-model", []() -> void {
@@ -1485,6 +1766,67 @@ on_click("mx-type", []() -> void {
     show_if("mx-typed", true);
     ab_send();
 });
+on_click("spe-mode-mix", []() -> void { spe_set_mode("mix"); });
+on_click("spe-mode-identify", []() -> void { spe_set_mode("identify"); });
+on_click("spe-mode-color", []() -> void { spe_set_mode("color"); });
+on_change("spe-elements", []() -> void {
+    spe_build_sliders();
+    spe_send_mix();
+});
+on_change("spe-kind", []() -> void { spe_set_mode(spe_mode); });
+on_click("spe-observed-go", []() -> void {
+    spe_send_common();
+    spe_refresh(cmd("spectra", "observed\t" + by("spe-observed").value_string()));
+});
+on_change("spe-observed", []() -> void {
+    spe_send_common();
+    spe_refresh(cmd("spectra", "observed\t" + by("spe-observed").value_string()));
+});
+on_click("spe-image-go", []() -> void {
+    string: path = by("spe-image").value_string();
+    string: top = (by("spe-top").value_float() / static_cast<short float>(100.0)).to_string();
+    string: bottom = (by("spe-bottom").value_float() / static_cast<short float>(100.0)).to_string();
+    string: reply = ccall("chem.image", path + "\tprofile\t" + top + "\t" + bottom);
+    if (field(reply, 0l) != "ok") then {
+        by("spe-status").set_inner_text(field(reply, 1l));
+        return;
+    }
+    spe_send_common();
+    spe_refresh(cmd("spectra", "profile\t" + by("spe-left").value_float().to_string() + "\t" + by("spe-right").value_float().to_string() + "\t" + field(reply, 1l)));
+});
+on_change("spe-image", []() -> void { by("spe-status").set_inner_text("Set the edges' wavelengths, then Read the image."); });
+on_click("spe-color-go", []() -> void { spe_set_mode("color"); });
+on_change("spe-target", []() -> void { spe_set_mode("color"); });
+on_change("spe-color-basis", []() -> void { spe_set_mode("color"); });
+on_change("spe-color-image", []() -> void {
+    string: reply = ccall("chem.image", by("spe-color-image").value_string() + "\tcolor\t0\t1");
+    if (field(reply, 0l) != "ok") then {
+        by("spe-status").set_inner_text(field(reply, 1l));
+        return;
+    }
+    by("spe-target").set_value_color(field(reply, 1l));
+    spe_set_mode("color");
+});
+on_change("spe-candidates", []() -> void { spe_set_mode(spe_mode); });
+on_click("spe-candidates-clear", []() -> void {
+    by("spe-candidates").set_value_string("");
+    spe_set_mode(spe_mode);
+});
+on_change("spe-start", []() -> void { spe_set_mode(spe_mode); });
+on_change("spe-end", []() -> void { spe_set_mode(spe_mode); });
+on_change("spe-fwhm", []() -> void { spe_set_mode(spe_mode); });
+on_click("spe-range-visible", []() -> void {
+    by("spe-start").set_value_float(static_cast<short float>(380.0));
+    by("spe-end").set_value_float(static_cast<short float>(780.0));
+    spe_set_mode(spe_mode);
+});
+on_click("spe-range-wide", []() -> void {
+    by("spe-start").set_value_float(static_cast<short float>(200.0));
+    by("spe-end").set_value_float(static_cast<short float>(950.0));
+    spe_set_mode(spe_mode);
+});
+spe_build_sliders();
+spe_send_mix();
 on_change("ab-flask-kind", []() -> void {
     ab_titration_setup(true);
     ab_send();
@@ -1507,7 +1849,13 @@ grove::set_interval(200.0, []() -> void {
     if (!by("chemistry").is_current()) then {
         return;
     }
-    if (by("chem-bonding").is_current()) then {
+    if (by("chem-bonding").is_current() && bond_mode == "network") then {
+        string: nv = cmd("network", "version");
+        if (nv != net_version) then {
+            net_version = nv;
+            bond_refresh();
+        }
+    } else if (by("chem-bonding").is_current()) then {
         string: v = cmd("bond", "version");
         if (v != bond_version) then {
             bond_version = v;

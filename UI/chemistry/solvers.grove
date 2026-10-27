@@ -41,7 +41,7 @@
 
                 <h3 class="side-title">Molar mass and percent composition</h3>
                 <row class="line">
-                    <input_string id="pc-formula" class="grow" value="C6H12O6" placeholder="formula" />
+                    <input_formula id="pc-formula" class="grow" value="C6H12O6" placeholder="formula" />
                     <button id="pc-go" class="primary small-btn">Go</button>
                 </row>
                 <column id="pc-out" class="panel"></column>

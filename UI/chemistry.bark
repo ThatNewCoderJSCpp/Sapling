@@ -230,6 +230,32 @@
     font-size: 12px;
 }
 
+.state-select {
+    width: 112px;
+}
+
+.role-select {
+    width: 136px;
+}
+
+.panel-assume {
+    color: #fab387;
+    font-size: 12px;
+    background: rgba(250, 179, 135, 0.08);
+    border-color: #fab387;
+    border-width: 0 0 0 3px;
+    padding: 2px 6px;
+}
+
+.panel-fail {
+    color: #f38ba8;
+    font-size: 12px;
+    background: rgba(243, 139, 168, 0.08);
+    border-color: #f38ba8;
+    border-width: 0 0 0 3px;
+    padding: 2px 6px;
+}
+
 .ion-list {
     gap: 1px;
 }
@@ -286,7 +312,9 @@
 
 .panel-line .panel-head,
 .panel-line .panel-note,
-.panel-line .panel-warn {
+.panel-line .panel-warn,
+.panel-line .panel-assume,
+.panel-line .panel-fail {
     flex: 1;
 }
 
@@ -306,7 +334,19 @@
     min-width: 28px;
 }
 
+#spe-fractions .label-w {
+    min-width: 28px;
+}
+
 .label-m {
     width: 66px;
     color: var(--muted);
+}
+
+.species-row input_select {
+    width: 150px;
+}
+
+.species-row input_string {
+    min-width: 60px;
 }

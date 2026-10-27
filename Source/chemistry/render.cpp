@@ -419,6 +419,88 @@ std::string pretty_formula(const std::string& formula) {
     return out;
 }
 
+namespace {
+
+bool formula_like(const std::string& core) {
+    if (core.size() < 2 || !(core[0] >= 'A' && core[0] <= 'Z')) return false;
+    bool digit = false;
+    bool charge = false;
+    for (std::size_t i = 0; i < core.size(); ++i) {
+        const char c = core[i];
+        if (c >= '0' && c <= '9') digit = true;
+        else if (c == '+' || c == '-') {
+            if (i + 1 != core.size() && !(i + 2 == core.size() && (core[i + 1] == '+' || core[i + 1] == '-'))) {
+                const std::string tail = core.substr(i + 1);
+                bool digits_after = !tail.empty();
+                for (char t : tail) if (!(t >= '0' && t <= '9')) digits_after = false;
+                if (!digits_after) return false;
+            }
+            charge = true;
+        } else if (c == '^' || c == '{' || c == '}' || c == '_' || c == '(' || c == ')' || c == '[' || c == ']' || c == '*') {
+        } else if (!std::isalpha(static_cast<unsigned char>(c))) {
+            return false;
+        }
+    }
+    if (!digit && !charge) return false;
+    try {
+        const fc::Formula f = fc::Formula::parse(core);
+        if (f.molar_mass() <= 0.0) return false;
+        return !f.display_string(true).empty();
+    } catch (...) {
+        return false;
+    }
+}
+
+}
+
+std::string pretty_text(const std::string& text) {
+    std::string out;
+    std::size_t i = 0;
+    while (i < text.size()) {
+        if (text[i] == ' ' || text[i] == '\t' || text[i] == '\n') {
+            out += text[i++];
+            continue;
+        }
+        std::size_t j = i;
+        while (j < text.size() && text[j] != ' ' && text[j] != '\t' && text[j] != '\n') ++j;
+        std::string word = text.substr(i, j - i);
+        i = j;
+        if (word == "->" || word == "-->") { out += "\xE2\x86\x92"; continue; }
+        if (word == "<=>" || word == "<->") { out += "\xE2\x87\x8C"; continue; }
+        std::string lead;
+        while (!word.empty() && (word[0] == '(' || word[0] == '"' || word[0] == '\'')) {
+            if (word[0] == '(' && word.size() > 1 && word[1] >= 'A' && word[1] <= 'Z' && word.find(')') != std::string::npos && word.find(')') + 1 < word.size()) break;
+            lead += word[0];
+            word.erase(0, 1);
+        }
+        std::string trail;
+        while (!word.empty() && std::string(".,;:!?\"')").find(word.back()) != std::string::npos) {
+            if (word.back() == ')' && std::count(word.begin(), word.end(), '(') >= std::count(word.begin(), word.end(), ')')) break;
+            trail.insert(trail.begin(), word.back());
+            word.pop_back();
+        }
+        std::string phase;
+        for (const char* p : { "(aq)", "(s)", "(l)", "(g)" }) {
+            const std::string ps = p;
+            if (word.size() > ps.size() && word.compare(word.size() - ps.size(), ps.size(), ps) == 0) {
+                phase = ps;
+                word.erase(word.size() - ps.size());
+                break;
+            }
+        }
+        std::string coefficient;
+        std::size_t k = 0;
+        while (k < word.size() && word[k] >= '0' && word[k] <= '9') ++k;
+        if (k > 0 && k < word.size() && word[k] >= 'A' && word[k] <= 'Z') {
+            coefficient = word.substr(0, k);
+            word.erase(0, k);
+        }
+        if (formula_like(word)) out += lead + coefficient + pretty_formula(word) + phase + trail;
+        else out += lead + coefficient + word + phase + trail;
+    }
+    return out;
+}
+
 UnitPrefs::UnitPrefs() {
     units["temperature"] = "K";
     units["temperature difference"] = "K";

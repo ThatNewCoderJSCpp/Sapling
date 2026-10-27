@@ -3,6 +3,10 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
+#include <functional>
+#include <map>
+#include <random>
 #include <sstream>
 
 namespace sapling {
@@ -277,7 +281,16 @@ public:
         }
         if (m_3d) draw_3d(canvas, theme);
         else draw_2d(canvas, theme);
-        draw_hud(canvas, theme, { title(), m_3d ? std::to_string(m_points.size()) + " sampled positions; denser = more likely" : std::string("slice through the nucleus (") + m_plane + " plane)" + (m_signed ? ", colored by the sign of \xCF\x88" : ", brightness = probability density") }, false);
+        std::string caption;
+        if (m_3d) {
+            if (m_style3 == "balloon") caption = m_target == "orbital" ? "surface holding 90% of the probability; colors are the signs of \xCF\x88" : "one sphere per subshell, holding 90% of its electrons";
+            else if (m_style3 == "balloon_dots") caption = "90% surface with " + std::to_string(m_points.size()) + " sampled positions inside";
+            else caption = std::to_string(m_points.size()) + " sampled positions; denser = more likely";
+        } else {
+            static const std::map<std::string, std::string> words = { { "heat", "brightness = probability density" }, { "gray", "brightness = probability density" }, { "contour", "lines of equal probability density" }, { "dots", "dots placed with probability |\xCF\x88|\xC2\xB2" }, { "outline", "the region holding 90% of the probability in this plane" } };
+            caption = std::string("slice through the nucleus (") + m_plane + " plane), " + words.at(m_style2);
+        }
+        draw_hud(canvas, theme, { title(), caption }, false);
     }
 
     bool mouse_down(Vec2 p, int, unsigned) override {
@@ -392,6 +405,17 @@ public:
             m_spin = arg(a, 1) == "1";
             return arg(a, 1);
         }
+        if (c == "style3") {
+            const std::string v = arg(a, 1);
+            if (v == "sign" || v == "mono" || v == "type" || v == "balloon" || v == "balloon_dots") m_style3 = v;
+            m_cache_key.clear();
+            return "ok";
+        }
+        if (c == "style2") {
+            const std::string v = arg(a, 1);
+            if (v == "heat" || v == "gray" || v == "contour" || v == "dots" || v == "outline") m_style2 = v;
+            return "ok";
+        }
         if (c == "readouts") return readouts();
         return "error\tunknown command " + c;
     }
@@ -416,6 +440,9 @@ private:
     void rebuild() {
         m_error.clear();
         m_points.clear();
+        m_grid_dirty = true;
+        m_cache_key.clear();
+        m_shells.clear();
         m_slice = fc::DensitySlice{};
         const fc::Element& e = fc::element(m_z);
         try {
@@ -441,23 +468,117 @@ private:
         const double x0 = 0.5 * (canvas.width() - side), y0 = 0.5 * (canvas.height() - side) + 10.0;
         const int W = m_slice.width, H = m_slice.height;
         const double maxabs = std::max(std::fabs(m_slice.max_value), std::fabs(m_slice.min_value));
+        const bool signed_values = m_signed && m_target == "orbital";
+        const auto at = [&](int a, int b) { return m_slice.values[static_cast<std::size_t>(b) * W + a]; };
+        const auto density = [&](double v) { return signed_values ? v * v : std::max(0.0, v); };
+        double max_density = 0.0;
+        for (double v : m_slice.values) max_density = std::max(max_density, density(v));
         const int px = static_cast<int>(side);
-        for (int j = 0; j < px; ++j) {
-            const double fy = (j + 0.5) / side * H - 0.5;
-            const int j0 = std::max(0, std::min(H - 1, static_cast<int>(std::floor(fy))));
-            const int j1 = std::min(H - 1, j0 + 1);
-            const double ty = std::max(0.0, std::min(1.0, fy - j0));
-            for (int i = 0; i < px; ++i) {
-                const double fx = (i + 0.5) / side * W - 0.5;
-                const int i0 = std::max(0, std::min(W - 1, static_cast<int>(std::floor(fx))));
-                const int i1 = std::min(W - 1, i0 + 1);
-                const double tx = std::max(0.0, std::min(1.0, fx - i0));
-                const auto at = [&](int a, int b) { return m_slice.values[static_cast<std::size_t>(b) * W + a]; };
-                const double v = (at(i0, j0) * (1 - tx) + at(i1, j0) * tx) * (1 - ty) + (at(i0, j1) * (1 - tx) + at(i1, j1) * tx) * ty;
-                Color c;
-                if (m_signed) c = signed_color(maxabs > 0 ? v / maxabs : 0.0, theme);
-                else c = heat_color(m_slice.max_value > 0 ? std::pow(std::max(0.0, v) / m_slice.max_value, 0.45) : 0.0, theme);
-                canvas.put_pixel(static_cast<int>(x0) + i, static_cast<int>(y0) + j, c);
+        const bool field = m_style2 == "heat" || m_style2 == "gray" || m_style2 == "contour";
+        if (field) {
+            for (int j = 0; j < px; ++j) {
+                const double fy = (j + 0.5) / side * H - 0.5;
+                const int j0 = std::max(0, std::min(H - 1, static_cast<int>(std::floor(fy))));
+                const int j1 = std::min(H - 1, j0 + 1);
+                const double ty = std::max(0.0, std::min(1.0, fy - j0));
+                for (int i = 0; i < px; ++i) {
+                    const double fx = (i + 0.5) / side * W - 0.5;
+                    const int i0 = std::max(0, std::min(W - 1, static_cast<int>(std::floor(fx))));
+                    const int i1 = std::min(W - 1, i0 + 1);
+                    const double tx = std::max(0.0, std::min(1.0, fx - i0));
+                    const double v = (at(i0, j0) * (1 - tx) + at(i1, j0) * tx) * (1 - ty) + (at(i0, j1) * (1 - tx) + at(i1, j1) * tx) * ty;
+                    Color c;
+                    if (m_style2 == "gray") {
+                        const double t = max_density > 0 ? std::pow(density(v) / max_density, 0.45) : 0.0;
+                        const auto g = static_cast<std::uint8_t>(std::lround(255.0 * t));
+                        c = rgb(g, g, g);
+                    } else if (signed_values) {
+                        c = signed_color(maxabs > 0 ? v / maxabs : 0.0, theme);
+                    } else {
+                        c = heat_color(max_density > 0 ? std::pow(density(v) / max_density, 0.45) : 0.0, theme);
+                    }
+                    if (m_style2 == "contour") c.a = 90;
+                    canvas.put_pixel(static_cast<int>(x0) + i, static_cast<int>(y0) + j, c);
+                }
+            }
+        }
+        const auto to_screen = [&](double gx, double gy) { return Vec2{ x0 + (gx + 0.5) * side / W, y0 + (gy + 0.5) * side / H }; };
+        const auto contour = [&](const std::function<double(int, int)>& f, double level, Color color, double width) {
+            for (int j = 0; j + 1 < H; ++j) {
+                for (int i = 0; i + 1 < W; ++i) {
+                    const double v[4] = { f(i, j) - level, f(i + 1, j) - level, f(i + 1, j + 1) - level, f(i, j + 1) - level };
+                    const double cx[4] = { static_cast<double>(i), static_cast<double>(i + 1), static_cast<double>(i + 1), static_cast<double>(i) };
+                    const double cy[4] = { static_cast<double>(j), static_cast<double>(j), static_cast<double>(j + 1), static_cast<double>(j + 1) };
+                    Vec2 hits[4];
+                    int count = 0;
+                    for (int e = 0; e < 4; ++e) {
+                        const int f2 = (e + 1) % 4;
+                        if ((v[e] < 0) == (v[f2] < 0)) continue;
+                        const double t = v[e] / (v[e] - v[f2]);
+                        hits[count++] = to_screen(cx[e] + (cx[f2] - cx[e]) * t, cy[e] + (cy[f2] - cy[e]) * t);
+                    }
+                    if (count >= 2) canvas.line_px(hits[0], hits[1], color, width);
+                    if (count == 4) canvas.line_px(hits[2], hits[3], color, width);
+                }
+            }
+        };
+        std::vector<double> sorted;
+        double level90 = 0.0;
+        if (m_style2 == "outline" || m_style2 == "contour") {
+            for (double v : m_slice.values) sorted.push_back(density(v));
+            std::sort(sorted.begin(), sorted.end(), std::greater<double>());
+            double total = 0.0;
+            for (double d : sorted) total += d;
+            double run = 0.0;
+            for (double d : sorted) {
+                run += d;
+                level90 = d;
+                if (run >= 0.9 * total) break;
+            }
+        }
+        if (m_style2 == "contour" && max_density > 0) {
+            for (double frac : { 0.7, 0.4, 0.2, 0.1, 0.05, 0.02 }) {
+                const double level = frac * max_density;
+                if (signed_values) {
+                    const double amp = std::sqrt(level);
+                    contour([&](int a, int b) { return at(a, b); }, amp, rgb(243, 139, 168), 1.2);
+                    contour([&](int a, int b) { return -at(a, b); }, amp, rgb(137, 180, 250), 1.2);
+                } else {
+                    contour([&](int a, int b) { return density(at(a, b)); }, level, theme.text, 1.0);
+                }
+            }
+        }
+        if (m_style2 == "outline" && level90 > 0) {
+            for (int j = 0; j < px; ++j) {
+                const int gj = std::max(0, std::min(H - 1, static_cast<int>((j + 0.5) / side * H)));
+                for (int i = 0; i < px; ++i) {
+                    const int gi = std::max(0, std::min(W - 1, static_cast<int>((i + 0.5) / side * W)));
+                    const double v = at(gi, gj);
+                    if (density(v) < level90) continue;
+                    Color c = signed_values ? (v >= 0 ? rgb(243, 139, 168, 120) : rgb(137, 180, 250, 120)) : rgb(166, 227, 161, 110);
+                    canvas.put_pixel(static_cast<int>(x0) + i, static_cast<int>(y0) + j, c);
+                }
+            }
+            if (signed_values) {
+                contour([&](int a, int b) { return at(a, b); }, std::sqrt(level90), rgb(243, 139, 168), 2.0);
+                contour([&](int a, int b) { return -at(a, b); }, std::sqrt(level90), rgb(137, 180, 250), 2.0);
+            } else {
+                contour([&](int a, int b) { return density(at(a, b)); }, level90, rgb(166, 227, 161), 2.0);
+            }
+        }
+        if (m_style2 == "dots" && max_density > 0) {
+            std::mt19937 rng(11u);
+            std::uniform_real_distribution<double> u01(0.0, 1.0);
+            const int wanted = std::max(500, m_count / 2);
+            int placed = 0;
+            for (int tries = 0; tries < wanted * 400 && placed < wanted; ++tries) {
+                const double gx = u01(rng) * (W - 1), gy = u01(rng) * (H - 1);
+                const int gi = static_cast<int>(gx), gj = static_cast<int>(gy);
+                const double v = at(gi, gj);
+                if (u01(rng) * max_density > density(v)) continue;
+                ++placed;
+                const Color c = signed_values ? (v >= 0 ? rgb(243, 139, 168, 200) : rgb(137, 180, 250, 200)) : theme.text;
+                canvas.disc_px(to_screen(gx, gy), 1.1, c);
             }
         }
         canvas.stroke_rect_px(x0, y0, side, side, theme.axes, 1.0);
@@ -465,6 +586,159 @@ private:
         canvas.text(Vec2{ x0 + side * 0.5, y0 + side + 18.0 }, std::string(1, m_plane[0]) + " axis, \xC2\xB1" + u.format(m_extent * 1e-12, "length", 3), 11.0, theme.muted, TextAlign::Center);
         canvas.text(Vec2{ x0 - 8.0, y0 + side * 0.5 }, std::string(1, m_plane[1]), 12.0, theme.muted, TextAlign::Right);
         canvas.disc_px(Vec2{ x0 + side * 0.5, y0 + side * 0.5 }, 2.0, theme.red);
+    }
+
+    void build_grid() {
+        m_grid_dirty = false;
+        m_grid.clear();
+        m_grid_n = 0;
+        m_iso = 0.0;
+        m_cache_key.clear();
+        if (m_target != "orbital") {
+            try {
+                m_shells = fc::atom_radial_distributions(fc::element(m_z), std::max(60.0, m_extent * 2.5), 400, model_of(m_model), m_charge);
+            } catch (...) {
+                m_shells.clear();
+            }
+            return;
+        }
+        const int G = 56;
+        const double E = m_extent;
+        const double z = zeff();
+        m_grid.assign(static_cast<std::size_t>(G) * G * G, 0.0f);
+        std::vector<double> squares;
+        squares.reserve(m_grid.size());
+        for (int k = 0; k < G; ++k) {
+            for (int j = 0; j < G; ++j) {
+                for (int i = 0; i < G; ++i) {
+                    const double x = -E + 2.0 * E * i / (G - 1), y = -E + 2.0 * E * j / (G - 1), w = -E + 2.0 * E * k / (G - 1);
+                    double psi = 0.0;
+                    try {
+                        psi = fc::wavefunction(m_n, m_l, m_m, z, x / BOHR_PM, y / BOHR_PM, w / BOHR_PM, model_of(m_model));
+                    } catch (...) {
+                    }
+                    m_grid[(static_cast<std::size_t>(k) * G + j) * G + i] = static_cast<float>(psi);
+                    squares.push_back(psi * psi);
+                }
+            }
+        }
+        m_grid_n = G;
+        std::sort(squares.begin(), squares.end(), std::greater<double>());
+        double total = 0.0;
+        for (double q : squares) total += q;
+        double run = 0.0;
+        for (double q : squares) {
+            run += q;
+            m_iso = std::sqrt(q);
+            if (run >= 0.9 * total) break;
+        }
+    }
+
+    double grid_at(Vec3 p) const {
+        const int G = m_grid_n;
+        if (G < 2) return 0.0;
+        const double E = m_extent;
+        const double fx = (p.x + E) / (2.0 * E) * (G - 1), fy = (p.y + E) / (2.0 * E) * (G - 1), fz = (p.z + E) / (2.0 * E) * (G - 1);
+        if (fx < 0 || fy < 0 || fz < 0 || fx > G - 1 || fy > G - 1 || fz > G - 1) return 0.0;
+        const int i = std::min(G - 2, static_cast<int>(fx)), j = std::min(G - 2, static_cast<int>(fy)), k = std::min(G - 2, static_cast<int>(fz));
+        const double tx = fx - i, ty = fy - j, tz = fz - k;
+        const auto g = [&](int a, int b, int c) { return static_cast<double>(m_grid[(static_cast<std::size_t>(c) * G + b) * G + a]); };
+        const double c00 = g(i, j, k) * (1 - tx) + g(i + 1, j, k) * tx;
+        const double c10 = g(i, j + 1, k) * (1 - tx) + g(i + 1, j + 1, k) * tx;
+        const double c01 = g(i, j, k + 1) * (1 - tx) + g(i + 1, j, k + 1) * tx;
+        const double c11 = g(i, j + 1, k + 1) * (1 - tx) + g(i + 1, j + 1, k + 1) * tx;
+        return (c00 * (1 - ty) + c10 * ty) * (1 - tz) + (c01 * (1 - ty) + c11 * ty) * tz;
+    }
+
+    void draw_balloon(Canvas& canvas, bool see_through) {
+        if (m_grid_dirty) build_grid();
+        if (m_grid_n < 2 || !(m_iso > 0.0)) return;
+        const int W = canvas.width(), H = canvas.height();
+        const int step = m_down ? 4 : 2;
+        const int bw = (W + step - 1) / step, bh = (H + step - 1) / step;
+        char key[256];
+        std::snprintf(key, sizeof(key), "%.5f|%.5f|%.6f|%.2f|%.2f|%d|%d|%d|%d", m_cam.yaw, m_cam.pitch, m_cam.zoom, m_cam.pan.x, m_cam.pan.y, W, H, step, see_through ? 1 : 0);
+        if (m_cache_key != key) {
+            m_cache_key = key;
+            m_cache.assign(static_cast<std::size_t>(bw) * bh, Color{ 0, 0, 0, 0 });
+            const double E = m_extent;
+            const double R = E * 1.8;
+            const double spacing = 2.0 * E / (m_grid_n - 1);
+            const double dz = spacing * 0.6;
+            const Vec3 light = normalized(Vec3{ -0.45, 0.55, 0.7 });
+            const Vec3 half = normalized(light + Vec3{ 0.0, 0.0, 1.0 });
+            const Vec3 origin_view = m_cam.to_view(Vec3{});
+            for (int by = 0; by < bh; ++by) {
+                for (int bx = 0; bx < bw; ++bx) {
+                    const Vec2 sp{ bx * step + 0.5 * step, by * step + 0.5 * step };
+                    Vec3 a = m_cam.unproject(sp, R);
+                    Vec3 b = m_cam.unproject(sp, -R);
+                    double t0 = 0.0, t1 = 1.0;
+                    const Vec3 d = b - a;
+                    bool miss = false;
+                    for (int axis = 0; axis < 3 && !miss; ++axis) {
+                        const double o = axis == 0 ? a.x : axis == 1 ? a.y : a.z;
+                        const double v = axis == 0 ? d.x : axis == 1 ? d.y : d.z;
+                        if (std::fabs(v) < 1e-12) {
+                            if (o < -E || o > E) miss = true;
+                            continue;
+                        }
+                        double ta = (-E - o) / v, tb = (E - o) / v;
+                        if (ta > tb) std::swap(ta, tb);
+                        t0 = std::max(t0, ta);
+                        t1 = std::min(t1, tb);
+                        if (t0 > t1) miss = true;
+                    }
+                    if (miss) continue;
+                    const double len = length(d) * (t1 - t0);
+                    const int steps = std::max(2, static_cast<int>(len / dz));
+                    Vec3 prev = a + d * t0;
+                    double prev_v = grid_at(prev);
+                    for (int s = 1; s <= steps; ++s) {
+                        const Vec3 p = a + d * (t0 + (t1 - t0) * s / steps);
+                        const double v = grid_at(p);
+                        if (std::fabs(v) < m_iso) {
+                            prev = p;
+                            prev_v = v;
+                            continue;
+                        }
+                        Vec3 lo = prev, hi = p;
+                        for (int it = 0; it < 6; ++it) {
+                            const Vec3 mid = (lo + hi) * 0.5;
+                            if (std::fabs(grid_at(mid)) >= m_iso) hi = mid;
+                            else lo = mid;
+                        }
+                        const Vec3 h = hi;
+                        const double e = spacing * 0.5;
+                        Vec3 grad{
+                            std::fabs(grid_at(h + Vec3{ e, 0, 0 })) - std::fabs(grid_at(h - Vec3{ e, 0, 0 })),
+                            std::fabs(grid_at(h + Vec3{ 0, e, 0 })) - std::fabs(grid_at(h - Vec3{ 0, e, 0 })),
+                            std::fabs(grid_at(h + Vec3{ 0, 0, e })) - std::fabs(grid_at(h - Vec3{ 0, 0, e }))
+                        };
+                        Vec3 normal = normalized(grad * -1.0);
+                        const Vec3 nv = normalized(m_cam.to_view(normal) - origin_view);
+                        const double lambert = std::max(0.0, dot(nv, light));
+                        const double spec = std::pow(std::max(0.0, dot(nv, half)), 32.0) * 0.45;
+                        const bool positive = grid_at(h) >= 0.0;
+                        const double br = positive ? 243.0 : 137.0, bg = positive ? 139.0 : 180.0, bb = positive ? 168.0 : 250.0;
+                        const double shade = 0.28 + 0.72 * lambert;
+                        const auto channel = [&](double base) { return static_cast<std::uint8_t>(std::max(0.0, std::min(255.0, base * shade + 255.0 * spec))); };
+                        m_cache[static_cast<std::size_t>(by) * bw + bx] = Color{ channel(br), channel(bg), channel(bb), static_cast<std::uint8_t>(see_through ? 150 : 255) };
+                        (void)prev_v;
+                        break;
+                    }
+                }
+            }
+        }
+        for (int by = 0; by < bh; ++by) {
+            for (int bx = 0; bx < bw; ++bx) {
+                const Color c = m_cache[static_cast<std::size_t>(by) * bw + bx];
+                if (c.a == 0) continue;
+                for (int yy = 0; yy < step; ++yy) {
+                    for (int xx = 0; xx < step; ++xx) canvas.put_pixel(bx * step + xx, by * step + yy, c);
+                }
+            }
+        }
     }
 
     void draw_3d(Canvas& canvas, const Theme& theme) {
@@ -482,20 +756,47 @@ private:
         scene.text(Vec3{ L * 1.05, 0, 0 }, "x", 11.0, theme.muted);
         scene.text(Vec3{ 0, L * 1.05, 0 }, "y", 11.0, theme.muted);
         scene.text(Vec3{ 0, 0, L * 1.05 }, "z", 11.0, theme.muted);
+        const bool balloon = m_style3 == "balloon" || m_style3 == "balloon_dots";
+        const bool dots = !balloon || m_style3 == "balloon_dots";
         scene.sphere_px(Vec3{}, 4.0, theme.red);
         int max_n = 1;
         for (const fc::CloudPoint& p : m_points) max_n = std::max(max_n, p.n);
         const double dot = m_points.size() > 20000 ? 1.0 : 1.4;
-        for (const fc::CloudPoint& p : m_points) {
-            Color c;
-            if (m_target == "orbital" || m_signed) c = p.sign >= 0 ? rgb(243, 139, 168, 170) : rgb(137, 180, 250, 170);
-            else {
-                c = l_color(p.l, p.n, max_n);
-                c.a = 150;
+        if (dots) {
+            for (const fc::CloudPoint& p : m_points) {
+                Color c;
+                if (m_style3 == "mono") c = rgb(205, 214, 244, 120);
+                else if (m_style3 == "type") c = l_color(p.l, p.n, max_n), c.a = 150;
+                else if (m_target == "orbital" || m_signed) c = p.sign >= 0 ? rgb(243, 139, 168, 170) : rgb(137, 180, 250, 170);
+                else {
+                    c = l_color(p.l, p.n, max_n);
+                    c.a = 150;
+                }
+                if (balloon) c.a = 110;
+                scene.disc(Vec3{ p.x, p.y, p.z }, dot, c);
             }
-            scene.disc(Vec3{ p.x, p.y, p.z }, dot, c);
+        }
+        if (balloon && m_target != "orbital") {
+            if (m_grid_dirty) build_grid();
+            int shell_max = 1;
+            for (const fc::RadialCurve& r : m_shells) shell_max = std::max(shell_max, r.n);
+            std::vector<const fc::RadialCurve*> order_list;
+            for (const fc::RadialCurve& r : m_shells) {
+                if (m_target == "valence" && r.n < shell_max && r.l < 2) continue;
+                if (r.occupancy > 0 && r.radius_90_pm > 0) order_list.push_back(&r);
+            }
+            std::sort(order_list.begin(), order_list.end(), [](const fc::RadialCurve* x, const fc::RadialCurve* y) { return x->radius_90_pm > y->radius_90_pm; });
+            for (std::size_t i = 0; i < order_list.size(); ++i) {
+                Color c = l_color(order_list[i]->l, order_list[i]->n, shell_max);
+                c.a = m_style3 == "balloon_dots" ? 55 : 90;
+                scene.sphere(Vec3{}, order_list[i]->radius_90_pm, c, -static_cast<double>(i) * 1e-3);
+            }
         }
         scene.draw(canvas);
+        if (balloon && m_target == "orbital") {
+            draw_balloon(canvas, m_style3 == "balloon_dots");
+            canvas.disc_px(m_cam.project(Vec3{}), 3.0, theme.red);
+        }
     }
 
     std::string readouts() const {
@@ -539,6 +840,15 @@ private:
     int m_count = 9000;
     std::string m_model = "hydrogenic";
     bool m_spin = true;
+    std::string m_style3 = "sign";
+    std::string m_style2 = "heat";
+    std::vector<float> m_grid;
+    int m_grid_n = 0;
+    double m_iso = 0.0;
+    bool m_grid_dirty = true;
+    std::vector<Color> m_cache;
+    std::string m_cache_key;
+    std::vector<fc::RadialCurve> m_shells;
     double m_extent = 300.0;
     std::vector<fc::CloudPoint> m_points;
     fc::DensitySlice m_slice;

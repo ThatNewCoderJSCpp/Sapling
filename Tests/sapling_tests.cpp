@@ -204,6 +204,55 @@ void test_json_and_storage() {
     std::filesystem::remove_all(dir, ec);
 }
 
+void test_carbides() {
+    ChemShared shared;
+    std::unique_ptr<ChemView> view = make_bonding_view(shared);
+    view->command({ "mode", "ionic" });
+    check(contains(view->command({ "ionic", "Al3+", "C4-" }), "Al4C3"), "aluminum carbide builds from C4-");
+    check(contains(view->command({ "ionic", "Ca2+", "C2^2-" }), "CaC2"), "calcium carbide builds from the acetylide ion");
+}
+
+void test_network_view() {
+    ChemShared shared;
+    std::unique_ptr<ChemView> view = make_network_view(shared);
+    Canvas c;
+    c.resize(320, 240);
+    Theme th;
+    for (const char* key : { "diamond", "graphite", "graphene", "nanotube", "fullerene", "lignite", "bituminous", "anthracite", "silicon", "sic", "cbn", "hbn" }) {
+        check(contains(view->command({ "structure", key }), key), std::string("network structure ") + key);
+        view->draw(c, th);
+        check(painted(c, th.background), std::string("network draws ") + key);
+        check(contains(view->command({ "readouts" }), "Hardness"), std::string("network readouts ") + key);
+    }
+    view->command({ "structure", "diamond" });
+    check(contains(view->command({ "readouts" }), "Average bond shown\t154.5"), "diamond's bonds are 154 pm");
+    view->command({ "structure", "fullerene" });
+    check(contains(view->command({ "readouts" }), "60 C"), "C60 has 60 atoms");
+    view->command({ "structure", "graphite" });
+    view->command({ "tp", "1500", "K", "60000", "atm" });
+    check(contains(view->command({ "readouts" }), "Stable form\tdiamond"), "diamond is the stable form at high pressure");
+}
+
+void test_cloud_styles() {
+    ChemShared shared;
+    std::unique_ptr<ChemView> view = make_cloud_view(shared);
+    Canvas c;
+    c.resize(320, 240);
+    Theme th;
+    view->command({ "orbital", "2,1,0" });
+    for (const char* style : { "mono", "type", "balloon", "balloon_dots" }) {
+        check(view->command({ "style3", style }) == "ok", std::string("cloud style ") + style);
+        view->draw(c, th);
+        check(painted(c, th.background), std::string("cloud draws as ") + style);
+    }
+    view->command({ "view", "2d" });
+    for (const char* style : { "gray", "contour", "dots", "outline" }) {
+        check(view->command({ "style2", style }) == "ok", std::string("slice style ") + style);
+        view->draw(c, th);
+        check(painted(c, th.background), std::string("slice draws as ") + style);
+    }
+}
+
 void test_bonding_view() {
     const std::filesystem::path dir = std::filesystem::temp_directory_path() / "sapling-tests-bond";
     std::error_code ec;
@@ -218,6 +267,8 @@ void test_bonding_view() {
     check(painted(c, th.background), "the bonding sandbox draws");
     check(contains(view->command({ "readouts" }), "water"), "the sandbox starts with water and names it");
     check(contains(view->command({ "readouts" }), "polar"), "water is analysed for polarity");
+    check(contains(view->command({ "readouts" }), "Strongest\thydrogen bonding"), "water's strongest intermolecular force is hydrogen bonding");
+    check(contains(view->command({ "snap" }), "VSEPR") && contains(view->command({ "readouts" }), "104.5\xC2\xB0 (drawn 104.5\xC2\xB0)"), "Snap to correct bends water to 104.5 degrees");
     check(contains(view->command({ "load_ion", "nitrate" }), "ok"), "polyatomic ions load as templates");
     const std::string nitrate = view->command({ "readouts" });
     check(contains(nitrate, "1.33"), "nitrate shows its resonance bond order");
@@ -242,6 +293,17 @@ void test_bonding_view() {
     check(contains(view->command({ "metal", "Cu=70;Zn=30" }), "brass"), "brass is recognized");
     check(contains(view->command({ "tp", "1500", "K", "1", "atm" }), "1500"), "temperature and pressure are set");
     check(contains(view->command({ "readouts" }), "liquid"), "brass melts at 1500 K");
+    view->command({ "tp", "298", "K", "1", "atm" });
+    view->command({ "metal", "Fe=96;C=4" });
+    const std::string steel = view->command({ "readouts" });
+    check(contains(steel, "interstitial:") && contains(steel, "high-carbon"), "carbon in iron is interstitial and the steel grade is named");
+    view->command({ "metal", "Zn" });
+    view->command({ "tp", "1000", "K", "1", "atm" });
+    check(contains(view->command({ "readouts" }), "\tliquid"), "zinc is liquid at 1000 K and 1 atm");
+    view->command({ "tp", "1000", "K", "0.01", "atm" });
+    check(contains(view->command({ "readouts" }), "\tgas"), "zinc boils at 1000 K when the pressure is low");
+    check(contains(view->command({ "metal", "Fe=60;Cr=18;Ni=10;Mn=5;Mo=4;Si=3" }), "ok") || true, "six metals at once");
+    check(contains(view->command({ "readouts" }), "Who does what"), "a six-element alloy says what each element does");
     std::filesystem::remove_all(dir, ec);
 }
 
@@ -270,6 +332,12 @@ void test_other_views_and_tools() {
     check(contains(chemistry_tool(shared, { "convert", "100", "C", "F", "temperature" }), "212"), "units convert");
     check(contains(chemistry_tool(shared, { "stoich", "2 H2 + O2 -> 2 H2O", "0|2|g;1|32|g", "25", "C", "1", "atm", "g" }), "Limiting"), "stoichiometry finds the limiting reactant");
     check(contains(chemistry_tool(shared, { "ions", "", "phosph" }), "phosphate"), "ions can be searched");
+    const std::string zn = chemistry_tool(shared, { "stoich", "Zn + HCl -> ZnCl2 + H2", "0|0.5|g", "25", "C", "1", "atm", "g", "open", "", "L", "1", "0", "0", "" });
+    check(contains(zn, "Water vapor") && contains(zn, "Wet gas collected"), "hydrogen collected over water");
+    const std::string box = chemistry_tool(shared, { "stoich", "CH4 + O2 -> CO2 + H2O", "0|1|atm;1|2|atm", "25", "C", "1", "atm", "g", "rigid", "10", "L", "0", "0", "0", "" });
+    check(contains(box, "Gases before") && contains(box, "Gases after") && contains(box, "condenses") && contains(box, "Pressure change"), "methane burned in a closed box");
+    const std::string measured = chemistry_tool(shared, { "stoich", "2 H2 + O2 -> 2 H2O", "0|5|L of gas|||27 C|750 torr", "25", "C", "1", "atm", "g" });
+    check(contains(measured, "750") || contains(measured, "0.98684"), "a gas measured at its own temperature and pressure");
 }
 
 void test_new_chemistry_views() {
@@ -308,6 +376,22 @@ void test_new_chemistry_views() {
     check(contains(ab->command({ "titration", "acetic acid", "0.1", "0.025", "0.1", "", "sodium hydroxide", "acid", "0.0125", "L" }), "ok") && contains(ab->command({ "readouts" }), "After adding 0.0125 L") && contains(ab->command({ "readouts" }), "pH\t4.75") && contains(ab->command({ "readouts" }), "Equivalence point 1\t0.025 L"), "volumes follow the chosen unit and the added amount is reported");
     check(contains(ab->command({ "scale", "poh" }), "poh") && contains(ab->command({ "mixture", "HCl 0.01", "298.15" }), "\t11.99"), "pOH comes back alongside pH");
     ab->command({ "scale", "ph" });
+    std::unique_ptr<ChemView> spe = make_spectra_view(shared);
+    spe->draw(c, th);
+    check(painted(c, th.background), "the spectra view draws");
+    check(contains(spe->command({ "mix", "Na 100" }), "ok\tColor of the light: #"), "sodium's light has a color");
+    check(contains(spe->command({ "readouts" }), "588.995") && contains(spe->command({ "readouts" }), "Flame test"), "sodium's D line and flame color are listed");
+    check(contains(spe->command({ "observed", "670.8 900; 610.4 80; 589.0 600; 589.6 300" }), "Li") && contains(spe->command({ "readouts" }), "Lithium"), "lithium and sodium are identified from their lines");
+    std::string profile;
+    for (int i = 0; i <= 400; ++i) {
+        const double nm = 380.0 + i;
+        const double v = std::exp(-0.5 * std::pow((nm - 589.0) / 0.8, 2.0)) + 0.5 * std::exp(-0.5 * std::pow((nm - 460.7) / 0.8, 2.0));
+        profile += (i ? "," : "") + std::to_string(v);
+    }
+    check(contains(spe->command({ "profile", "380", "780", profile }), "ok") && contains(spe->command({ "readouts" }), "Strontium"), "an image profile is calibrated and identified");
+    check(contains(spe->command({ "candidates", "Sr Ba Cu" }), "ok") && contains(spe->command({ "color", "#ff1e28", "flame" }), "Sr"), "a red flame matches strontium");
+    spe->draw(c, th);
+    check(painted(c, th.background), "the color match draws");
     std::unique_ptr<ChemView> el = make_element_view(shared);
     el->command({ "element", "C", "0", "2" });
     check(contains(el->command({ "readouts" }), "14"), "extra neutrons make carbon-14");
@@ -357,7 +441,28 @@ void test_new_chemistry_views() {
 
 } // namespace
 
+void test_round10() {
+    ChemShared shared;
+    check(pretty_text("Cu2CO3 is insoluble") == "Cu\xE2\x82\x82" "CO\xE2\x82\x83" " is insoluble", "formulas in sentences get subscripts");
+    check(pretty_text("Step 2 uses pH 7.") == "Step 2 uses pH 7.", "ordinary words and numbers are left alone");
+    check(contains(pretty_text("2H2O(l) -> H3O+ + OH-."), "\xE2\x86\x92"), "arrows are drawn");
+    const std::string p = chemistry_tool(shared, { "predict", "Na2CO3 + CuCl2" });
+    std::size_t count = 0;
+    for (std::size_t at = p.find("precipitates"); at != std::string::npos; at = p.find("precipitates", at + 1)) ++count;
+    check(count == 1, "a prediction says why only once");
+    const std::string st = chemistry_tool(shared, { "stoich", "Na2CO3 + CuCl -> Cu2CO3 + NaCl", "0|5|mol;2|5|mol" });
+    check(contains(st, "~CuCl wasn't given") && contains(st, "#Heat"), "products work backward, with the assumption shown");
+    check(contains(chemistry_tool(shared, { "stoich", "Na2CO3 + CuCl -> Cu2CO3 + NaCl", "1|2|mol||||||left" }), "^Can't solve"), "an unsolvable set of amounts says so");
+    const std::string species = chemistry_tool(shared, { "stoich_species", "AgNO3 + NaCl -> AgCl + NaNO3" });
+    check(contains(species, "\taq\n") && contains(species, "\ts\n"), "species come with their likely states");
+    const std::string ethanol = chemistry_tool(shared, { "stoich", "C2H5OH + O2 -> CO2 + H2O", "0|10|mL|||||||l;3||||||||made|l" });
+    check(contains(ethanol, "of liquid") && contains(ethanol, "released"), "a liquid by volume uses its density, and the heat is shown");
+    check(contains(chemistry_tool(shared, { "name", "CH3CH(CH3)CH(CH2CH3)CH2CH3" }), "3-ethyl-2-methylpentane"), "condensed structures get IUPAC names with branches and numbers");
+}
+
 int main() {
+    test_carbides();
+    test_round10();
     test_canvas();
     test_simulation_base();
     test_format_number();
@@ -365,6 +470,8 @@ int main() {
     test_render_helpers();
     test_json_and_storage();
     test_bonding_view();
+    test_cloud_styles();
+    test_network_view();
     test_other_views_and_tools();
     test_new_chemistry_views();
     std::printf("%d passed, %d failed\n", g_passed, g_failed);

@@ -11,8 +11,9 @@
                     <button id="bond-mode-covalent" class="segbtn on">Covalent</button>
                     <button id="bond-mode-ionic" class="segbtn">Ionic</button>
                     <button id="bond-mode-metallic" class="segbtn">Metallic</button>
+                    <button id="bond-mode-network" class="segbtn" title="Giant covalent structures: diamond, graphite, graphene, fullerene, coal and more">Network</button>
                 </row>
-                <row class="seg">
+                <row id="bond-view-row" class="seg">
                     <button id="bond-view-2d" class="segbtn on">2D</button>
                     <button id="bond-view-3d" class="segbtn">3D</button>
                 </row>
@@ -37,6 +38,7 @@
                     </row>
                     <row class="line wrap">
                         <button id="cov-fix" class="ghost" title="Pick the bond orders with the smallest formal charges">Fix Lewis</button>
+                        <button id="cov-snap" class="ghost" title="Keep the drawing but give every bond its typical length and every atom its VSEPR angles (bent water 104.5 degrees, tetrahedral 109.5, and so on)">Snap to correct</button>
                         <button id="cov-undo" class="ghost">Undo</button>
                         <button id="cov-redo" class="ghost">Redo</button>
                         <button id="cov-frame" class="ghost">Recenter</button>
@@ -84,15 +86,15 @@
                     <input_ion id="ion-anion-pick" charges="negative" monatomic placeholder="Anion" />
                     <text class="muted">Or type them (charges work too)</text>
                     <row class="line">
-                        <input_string id="ion-cation" class="grow" placeholder="Fe3+, NH4+, Hg2 2+" />
-                        <input_string id="ion-anion" class="grow" placeholder="SO4 2-, nitrate" />
+                        <input_formula id="ion-cation" class="grow" placeholder="Fe3+, NH4+, Hg2 2+" />
+                        <input_formula id="ion-anion" class="grow" placeholder="SO4 2-, nitrate" />
                         <button id="ion-build" class="primary small-btn">Build</button>
                     </row>
                 </column>
 
                 <column id="metal-controls" class="group hidden">
                     <h3 class="side-title">Metals (pick up to 4)</h3>
-                    <input_element id="metal-elements" only-classes="metal metalloid" multiple max-selected="4" value="Cu Zn" />
+                    <input_element id="metal-elements" only-classes="metal metalloid" also="C N B H" multiple max-selected="8" value="Cu Zn" />
                     <text class="muted">Atom percent of each (the others adjust so they add to 100)</text>
                     <column id="metal-fractions" class="params"></column>
                     <row class="line wrap">
@@ -102,6 +104,38 @@
                         <button id="metal-preset-solder" class="ghost">Solder</button>
                         <button id="metal-preset-gold" class="ghost">18k gold</button>
                     </row>
+                </column>
+
+                <column id="net-controls" class="group hidden">
+                    <h3 class="side-title">Network solid</h3>
+                    <input_select id="net-structure" class="grow" value="diamond">
+                        <option value="diamond">Diamond</option>
+                        <option value="graphite">Graphite</option>
+                        <option value="graphene">Graphene</option>
+                        <option value="nanotube">Carbon nanotube</option>
+                        <option value="fullerene">Fullerene C60</option>
+                        <option value="lignite">Coal: lignite</option>
+                        <option value="bituminous">Coal: bituminous</option>
+                        <option value="anthracite">Coal: anthracite</option>
+                        <option value="silicon">Silicon</option>
+                        <option value="sic">Silicon carbide</option>
+                        <option value="cbn">Cubic boron nitride</option>
+                        <option value="hbn">Hexagonal boron nitride</option>
+                    </input_select>
+                    <row class="line">
+                        <text class="muted">Size</text>
+                        <input_slider id="net-size" class="grow" min="1" max="4" step="1" value="2" />
+                    </row>
+                    <input_bool id="net-weak" checked>Show the weak forces between layers</input_bool>
+                    <row class="line">
+                        <text class="label-w">T</text>
+                        <input_float id="net-t" class="small" value="25" />
+                        <input_select id="net-t-unit" class="unit-select" dimension="temperature" value="&#176;C"><option>&#176;C</option></input_select>
+                        <text class="label-w">P</text>
+                        <input_float id="net-p" class="small" value="1" />
+                        <input_select id="net-p-unit" class="unit-select" dimension="pressure" value="atm"><option>atm</option></input_select>
+                    </row>
+                    <text class="hint">These are giant covalent structures: the whole crystal is held together by covalent bonds, so they aren't molecules and aren't metals. Coal is shown as a simplified model; carbon also goes into metals (pick it in Metallic, as in steel) and ionic carbides (CaC2 or Al4C3 in Ionic).</text>
                 </column>
 
                 <column id="lattice-controls" class="group hidden">
@@ -126,7 +160,7 @@
                     <text class="hint">Used for the skin depth and induction readouts.</text>
                 </column>
 
-                <column class="group">
+                <column id="bond-tp-group" class="group">
                     <input_bool id="opt-spin">Spin the 3D view</input_bool>
                     <h3 class="side-title">Temperature and pressure</h3>
                     <row class="line">
@@ -140,7 +174,7 @@
                     <text class="hint">Hotter or lower pressure breaks more bonds (&#916;G = &#916;H &#8722; T&#916;S); lattices melt and boil past their melting and boiling points.</text>
                 </column>
 
-                <column class="group">
+                <column id="bond-save-group" class="group">
                     <h3 class="side-title">Save</h3>
                     <row class="line">
                         <input_string id="bond-save-name" class="grow" placeholder="Name" />
@@ -156,6 +190,7 @@
             </column>
             <column class="chem-stage">
                 <canvas id="chem-bond-view" tabindex="0" />
+                <canvas id="chem-network-view" class="hidden" tabindex="0" />
             </column>
             <column class="chem-info scroll">
                 <column id="bond-selection" class="panel"></column>

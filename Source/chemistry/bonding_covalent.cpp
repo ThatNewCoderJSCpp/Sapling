@@ -105,6 +105,7 @@ std::string composition_key(const fc::Formula& f) {
 struct KnownName {
     std::string name;
     std::vector<std::string> others;
+    std::string structure;
 };
 
 std::vector<KnownName> known_names(const fc::Formula& f, int charge) {
@@ -126,6 +127,7 @@ std::vector<KnownName> known_names(const fc::Formula& f, int charge) {
                 KnownName k;
                 k.name = e.name;
                 for (const std::string& o : chem_split(e.other_names)) k.others.push_back(o);
+                k.structure = fc::iupac_name_from_condensed(e.formula);
                 table[composition_key(fc::Formula::parse(e.formula)) + "q0"].push_back(k);
             } catch (...) {
             }
@@ -405,6 +407,198 @@ void BondingView::tidy() {
     m_analysis_dirty = true;
 }
 
+std::string BondingView::snap_to_correct() {
+    if (m_cov.atoms.size() < 2 || m_cov.bonds.empty()) return "draw at least one bond first";
+    m_analysis_dirty = true;
+    ensure_analysis();
+    if (!m_analysis.ok) return "the drawing can't be analyzed";
+    const std::size_t n = m_cov.atoms.size();
+    std::vector<std::vector<int>> neighbors(n);
+    for (const SandboxBond& b : m_cov.bonds) {
+        if (b.a < 0 || b.b < 0 || static_cast<std::size_t>(b.a) >= n || static_cast<std::size_t>(b.b) >= n) continue;
+        neighbors[static_cast<std::size_t>(b.a)].push_back(b.b);
+        neighbors[static_cast<std::size_t>(b.b)].push_back(b.a);
+    }
+    struct Link {
+        int a = 0;
+        int b = 0;
+        double length = 0.0;
+        int center = -1;
+        std::vector<double> allowed;
+        double la = 0.0;
+        double lb = 0.0;
+    };
+    std::vector<Link> links;
+    double length_change = 0.0;
+    for (std::size_t bi = 0; bi < m_cov.bonds.size(); ++bi) {
+        const SandboxBond& b = m_cov.bonds[bi];
+        Link l;
+        l.a = b.a;
+        l.b = b.b;
+        double order = b.order;
+        if (bi < m_analysis.avg_orders.size() && m_analysis.avg_orders[bi] > 0.0) order = m_analysis.avg_orders[bi];
+        const int za = m_cov.atoms[static_cast<std::size_t>(b.a)].z, zb = m_cov.atoms[static_cast<std::size_t>(b.b)].z;
+        const int low = std::max(1, std::min(3, static_cast<int>(std::floor(order + 1e-9))));
+        const int high = std::max(1, std::min(3, static_cast<int>(std::ceil(order - 1e-9))));
+        const double frac = high > low ? order - low : 0.0;
+        l.length = ideal_length(za, zb, low) * (1.0 - frac) + ideal_length(za, zb, high) * frac;
+        length_change = std::max(length_change, std::fabs(length(m_cov.atoms[static_cast<std::size_t>(b.a)].p - m_cov.atoms[static_cast<std::size_t>(b.b)].p) - l.length));
+        links.push_back(l);
+    }
+    const auto bond_length_between = [&](int a, int b) {
+        for (const Link& l : links) {
+            if (l.center < 0 && ((l.a == a && l.b == b) || (l.a == b && l.b == a))) return l.length;
+        }
+        return 150.0;
+    };
+    int shaped = 0;
+    for (std::size_t c = 0; c < n; ++c) {
+        const std::vector<int>& nb = neighbors[c];
+        const int degree = static_cast<int>(nb.size());
+        if (degree < 2) continue;
+        const int lone = c < m_analysis.lone_pairs.size() ? std::max(0, m_analysis.lone_pairs[c]) : 0;
+        const fc::VseprResult v = fc::vsepr(degree, lone);
+        std::vector<double> allowed = v.ideal_angles;
+        if (v.molecular_geometry == fc::Geometry::Bent) allowed = { lone >= 2 ? 104.5 : 117.0 };
+        if (v.molecular_geometry == fc::Geometry::TrigonalPyramidal) allowed = { 107.0 };
+        if (allowed.empty()) continue;
+        ++shaped;
+        if (!m_3d) {
+            std::vector<int> heavy;
+            for (int x : nb) if (m_cov.atoms[static_cast<std::size_t>(x)].z != 1) heavy.push_back(x);
+            const bool heavy_only = !heavy.empty();
+            if (heavy_only && heavy.size() < 2) continue;
+            const std::vector<int>& use = heavy_only ? heavy : nb;
+            const int count = static_cast<int>(use.size());
+            std::vector<std::pair<double, int>> around;
+            for (int x : use) {
+                const Vec3 d = m_cov.atoms[static_cast<std::size_t>(x)].p - m_cov.atoms[c].p;
+                around.push_back({ std::atan2(d.y, d.x), x });
+            }
+            std::sort(around.begin(), around.end());
+            for (std::size_t i = 0; i < around.size(); ++i) {
+                for (std::size_t j = i + 1; j < around.size(); ++j) {
+                    Link l;
+                    l.a = around[i].second;
+                    l.b = around[j].second;
+                    l.center = static_cast<int>(c);
+                    double target;
+                    if (degree == 2) target = allowed.front();
+                    else if (heavy_only && count == 2) target = v.hybridization == fc::Hybridization::SP ? 180.0 : 120.0;
+                    else {
+                        const double step = 360.0 / count;
+                        const double sep = static_cast<double>(j - i) * step;
+                        target = std::min(sep, 360.0 - sep);
+                    }
+                    l.allowed = { target };
+                    links.push_back(l);
+                }
+            }
+        } else {
+            for (std::size_t i = 0; i < nb.size(); ++i) {
+                for (std::size_t j = i + 1; j < nb.size(); ++j) {
+                    Link l;
+                    l.a = nb[i];
+                    l.b = nb[j];
+                    l.center = static_cast<int>(c);
+                    l.allowed = allowed;
+                    links.push_back(l);
+                }
+            }
+        }
+    }
+    for (Link& l : links) {
+        if (l.center < 0) continue;
+        l.la = bond_length_between(l.center, l.a);
+        l.lb = bond_length_between(l.center, l.b);
+    }
+    std::vector<Vec3> p(n);
+    Vec3 centroid;
+    for (std::size_t i = 0; i < n; ++i) {
+        p[i] = m_cov.atoms[i].p;
+        if (!m_3d) p[i].z = 0.0;
+        centroid = centroid + p[i];
+    }
+    centroid = centroid * (1.0 / static_cast<double>(n));
+    std::vector<double> weight(n, 1.0);
+    for (std::size_t i = 0; i < n; ++i) weight[i] = m_cov.atoms[i].z == 1 ? 3.0 : 1.0;
+    for (int iteration = 0; iteration < 600; ++iteration) {
+        for (const Link& l : links) {
+            Vec3& pa = p[static_cast<std::size_t>(l.a)];
+            Vec3& pb = p[static_cast<std::size_t>(l.b)];
+            Vec3 d = pb - pa;
+            double dist = length(d);
+            if (dist < 1e-6) {
+                d = Vec3{ 1.0, 0.3, m_3d ? 0.2 : 0.0 };
+                dist = length(d);
+            }
+            double target = l.length;
+            if (l.center >= 0) {
+                const Vec3 pc = p[static_cast<std::size_t>(l.center)];
+                const Vec3 ua = normalized(pa - pc), ub = normalized(pb - pc);
+                const double current = std::acos(std::max(-1.0, std::min(1.0, dot(ua, ub)))) * 180.0 / 3.14159265358979323846;
+                double angle = l.allowed.front();
+                for (double x : l.allowed) if (std::fabs(x - current) < std::fabs(angle - current)) angle = x;
+                const double rad = angle * 3.14159265358979323846 / 180.0;
+                target = std::sqrt(std::max(0.0, l.la * l.la + l.lb * l.lb - 2.0 * l.la * l.lb * std::cos(rad)));
+            }
+            const double wa = weight[static_cast<std::size_t>(l.a)], wb = weight[static_cast<std::size_t>(l.b)];
+            const Vec3 correction = d * ((dist - target) / dist);
+            pa = pa + correction * (wa / (wa + wb) * 0.5);
+            pb = pb - correction * (wb / (wa + wb) * 0.5);
+            if (!m_3d) {
+                pa.z = 0.0;
+                pb.z = 0.0;
+            }
+        }
+    }
+    if (!m_3d) {
+        for (std::size_t c = 0; c < n; ++c) {
+            std::vector<int> hydrogens, heavy;
+            for (int x : neighbors[c]) {
+                if (m_cov.atoms[static_cast<std::size_t>(x)].z == 1) hydrogens.push_back(x);
+                else heavy.push_back(x);
+            }
+            if (hydrogens.empty() || heavy.empty() || m_cov.atoms[c].z == 1) continue;
+            std::vector<double> angles;
+            for (int x : heavy) {
+                const Vec3 u = p[static_cast<std::size_t>(x)] - p[c];
+                angles.push_back(std::atan2(-u.y, u.x));
+            }
+            std::vector<double> picks = lone_pair_angles(angles, static_cast<int>(hydrogens.size()));
+            const int lone = c < m_analysis.lone_pairs.size() ? std::max(0, m_analysis.lone_pairs[c]) : 0;
+            if (heavy.size() == 1 && hydrogens.size() == 1 && lone > 0) {
+                const double bend = (lone >= 2 ? 104.5 : 117.0) * 3.14159265358979323846 / 180.0;
+                const double len = ideal_length(m_cov.atoms[c].z, 1, 1);
+                double best_angle = angles[0] + bend, best_room = -1.0;
+                for (double candidate : { angles[0] + bend, angles[0] - bend }) {
+                    const Vec3 q = p[c] + Vec3{ std::cos(candidate), -std::sin(candidate), 0.0 } * len;
+                    double room = 1e300;
+                    for (std::size_t o = 0; o < n; ++o) {
+                        if (o == c || o == static_cast<std::size_t>(hydrogens[0])) continue;
+                        room = std::min(room, length(p[o] - q));
+                    }
+                    if (room > best_room) {
+                        best_room = room;
+                        best_angle = candidate;
+                    }
+                }
+                picks = { best_angle };
+            }
+            for (std::size_t k = 0; k < hydrogens.size() && k < picks.size(); ++k) {
+                const double len = ideal_length(m_cov.atoms[c].z, 1, 1);
+                p[static_cast<std::size_t>(hydrogens[k])] = p[c] + Vec3{ std::cos(picks[k]), -std::sin(picks[k]), 0.0 } * len;
+            }
+        }
+    }
+    Vec3 after;
+    for (const Vec3& q : p) after = after + q;
+    after = after * (1.0 / static_cast<double>(n));
+    for (std::size_t i = 0; i < n; ++i) m_cov.atoms[i].p = p[i] - after + centroid;
+    m_analysis_dirty = true;
+    return "bond lengths set to their typical values (largest change " + format_number(length_change, 3) + " pm) and " + std::to_string(shaped) + " atom" + (shaped == 1 ? "" : "s") + " given their VSEPR angles";
+}
+
 void BondingView::fill_hydrogens() {
     m_analysis_dirty = true;
     ensure_analysis();
@@ -485,7 +679,7 @@ std::string BondingView::covalent_readouts() {
     if (m_cov.atoms.empty()) {
         o << "#Covalent sandbox\n";
         o << "Pick an element from the table, then click the canvas to place atoms. Drag from one atom to another to bond them; click a bond with the Bond tool to make it double or triple.\n";
-        o << "Fill H adds the hydrogens each atom needs, Tidy straightens the drawing (VSEPR shape in 3D), and Fix Lewis picks the bond orders with the smallest formal charges.\n";
+        o << "Fill H adds the hydrogens each atom needs, Tidy redraws the molecule neatly (VSEPR shape in 3D), Snap to correct keeps your drawing but sets every bond to its typical length and every angle to its VSEPR value, and Fix Lewis picks the bond orders with the smallest formal charges.\n";
         return o.str();
     }
     if (!m_analysis.ok) {
@@ -510,7 +704,22 @@ std::string BondingView::covalent_readouts() {
         }
     } catch (...) {
     }
-    if (!known.empty()) {
+    fc::OrganicName structural;
+    if (m_cov.charge == 0) structural = fc::name_organic_molecule(m);
+    if (structural.ok) {
+        o << "Name\t" << structural.name << "\n";
+        std::vector<std::string> others;
+        for (const KnownName& k : known) {
+            if (k.structure != structural.name) continue;
+            if (k.name != structural.name) others.push_back(k.name);
+            for (const std::string& x : k.others) if (x != structural.name) others.push_back(x);
+        }
+        std::string list;
+        for (std::size_t i = 0; i < others.size() && i < 4; ++i) list += (i ? ", " : "") + others[i];
+        if (!list.empty()) o << "Also called\t" << list << "\n";
+        o << "Kind\t" << (structural.principal_group.empty() ? std::string("hydrocarbon") : structural.principal_group) << "\n";
+        o << "Parent\t" << structural.parent << "\n";
+    } else if (!known.empty()) {
         o << "Name\t" << known.front().name << (m_cov.charge != 0 ? " ion" : "") << "\n";
         std::vector<std::string> others;
         for (std::size_t i = 1; i < known.size(); ++i) others.push_back(known[i].name + " (isomer)");
@@ -577,12 +786,49 @@ std::string BondingView::covalent_readouts() {
         const int lp = i < m_analysis.lone_pairs.size() ? m_analysis.lone_pairs[i] : 0;
         const fc::VseprResult v = fc::vsepr(m.degree(i), lp);
         std::string text = std::string(fc::to_string(v.molecular_geometry)) + " (" + v.axe_notation + ", " + fc::to_string(v.hybridization) + ")";
-        if (!v.ideal_angles.empty()) text += ", " + fixed(v.ideal_angles.front(), 1) + "\xC2\xB0";
+        if (!v.ideal_angles.empty()) {
+            double ideal = v.ideal_angles.front();
+            if (v.molecular_geometry == fc::Geometry::Bent) ideal = lp >= 2 ? 104.5 : 117.0;
+            if (v.molecular_geometry == fc::Geometry::TrigonalPyramidal) ideal = 107.0;
+            text += ", " + fixed(ideal, 1) + "\xC2\xB0";
+            std::vector<int> nb;
+            for (const SandboxBond& b : m_cov.bonds) {
+                if (b.a == static_cast<int>(i)) nb.push_back(b.b);
+                else if (b.b == static_cast<int>(i)) nb.push_back(b.a);
+            }
+            if (nb.size() >= 2 && (m_3d || nb.size() <= 3)) {
+                double smallest = 360.0;
+                for (std::size_t x = 0; x < nb.size(); ++x) {
+                    for (std::size_t y = x + 1; y < nb.size(); ++y) {
+                        const Vec3 a1 = normalized(m_cov.atoms[static_cast<std::size_t>(nb[x])].p - m_cov.atoms[i].p);
+                        const Vec3 a2 = normalized(m_cov.atoms[static_cast<std::size_t>(nb[y])].p - m_cov.atoms[i].p);
+                        smallest = std::min(smallest, std::acos(std::max(-1.0, std::min(1.0, dot(a1, a2)))) * 180.0 / 3.14159265358979323846);
+                    }
+                }
+                text += " (drawn " + fixed(smallest, 1) + "\xC2\xB0)";
+            }
+        }
         o << atom_label(m_cov, static_cast<int>(i)) << "\t" << text << "\n";
     }
     o << "Polarity\t" << (m_analysis.polar ? "polar" : "nonpolar") << "\n";
     o << "Dipole (VSEPR shape)\t" << fixed(m_analysis.mu_shape, 2) << " D\n";
     if (m_3d) o << "Dipole (as drawn)\t" << fixed(m_analysis.mu_drawn, 2) << " D\n";
+    try {
+        const fc::IntermolecularForces imf = fc::intermolecular_forces(m, m_analysis.mu_shape, m_cov.charge);
+        if (imf.ok) {
+            o << "#Intermolecular forces\n";
+            for (const fc::IntermolecularForce& f : imf.forces) {
+                if (!f.present && f.name == "ion\xE2\x80\x93" "dipole") continue;
+                const std::string level = !f.present ? "none" : f.strength > 0.66 ? "strong" : f.strength > 0.33 ? "medium" : "weak";
+                o << f.name << "\t" << level << ": " << f.detail << (f.present ? " (" + f.typical_energy + ")" : std::string()) << "\n";
+            }
+            o << "Strongest\t" << imf.strongest << "\n";
+            o << "Boiling point\t" << imf.boiling << "\n";
+            o << "In water\t" << imf.water_solubility << "\n";
+            o << "Mixes with\t" << imf.solvent_partners << "\n";
+        }
+    } catch (...) {
+    }
 
     try {
         double cp = fc::NO_VALUE;

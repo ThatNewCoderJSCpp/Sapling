@@ -20,6 +20,26 @@
                     <button id="cl-2d" class="segbtn">2D slice</button>
                     <button id="cl-3d" class="segbtn on">3D cloud</button>
                 </row>
+                <row id="cl-style3-row" class="line">
+                    <text class="muted">Style</text>
+                    <input_select id="cl-style3" class="grow" value="sign">
+                        <option value="sign">Dots, colored by sign</option>
+                        <option value="mono">Dots, one color</option>
+                        <option value="type">Dots, colored by orbital (s, p, d, f)</option>
+                        <option value="balloon">Balloons (90% surface)</option>
+                        <option value="balloon_dots">Balloons with dots inside</option>
+                    </input_select>
+                </row>
+                <row id="cl-style2-row" class="line hidden">
+                    <text class="muted">Style</text>
+                    <input_select id="cl-style2" class="grow" value="heat">
+                        <option value="heat">Heat map</option>
+                        <option value="gray">Grayscale</option>
+                        <option value="contour">Contour lines</option>
+                        <option value="dots">Dot density</option>
+                        <option value="outline">90% outline</option>
+                    </input_select>
+                </row>
                 <row class="line">
                     <text class="muted">Slice plane</text>
                     <input_select id="cl-plane" class="grow" value="xz">

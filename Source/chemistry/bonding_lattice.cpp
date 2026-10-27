@@ -229,15 +229,38 @@ void BondingView::restart_assembly() {
     }
 }
 
-std::string BondingView::lattice_state() const {
-    double mp = fc::NO_VALUE, bp = fc::NO_VALUE;
-    if (m_mode == BondingMode::Ionic) {
-        mp = m_ionic.melting_point;
-        bp = m_ionic.boiling_point;
-    } else {
-        mp = m_metal.melting_point;
-        bp = m_metal.boiling_point;
+double BondingView::melting_now() const {
+    const bool ionic = m_mode == BondingMode::Ionic;
+    const double mp = ionic ? m_ionic.melting_point : m_metal.melting_point;
+    if (!finite(mp)) return mp;
+    double molar = ionic ? fc::NO_VALUE : m_metal.molar_mass;
+    double density = ionic ? m_ionic.density : m_metal.density;
+    if (ionic) {
+        try {
+            molar = fc::Formula::parse(m_ionic.formula).molar_mass();
+        } catch (...) {
+        }
     }
+    if (!finite(molar) || !finite(density) || density <= 0.0) return mp;
+    const double volume = molar / 1000.0 / (density * 1000.0);
+    const double slope = ionic ? 0.15 * volume / (2.5 * 8.314462618) : 0.04 * volume / (1.1 * 8.314462618);
+    return mp + slope * (m_pressure - 101325.0);
+}
+
+double BondingView::boiling_now() const {
+    const bool ionic = m_mode == BondingMode::Ionic;
+    const double bp = ionic ? m_ionic.boiling_point : m_metal.boiling_point;
+    if (!finite(bp) || bp <= 0.0) return bp;
+    double heat = fc::NO_VALUE;
+    if (!ionic && finite(m_metal.cohesive_energy)) heat = m_metal.cohesive_energy * 1000.0;
+    if (!finite(heat) || heat <= 0.0) heat = 88.0 * bp;
+    const double inverse = 1.0 / bp - 8.314462618 * std::log(std::max(1e-9, m_pressure) / 101325.0) / heat;
+    return inverse > 0.0 ? 1.0 / inverse : 1e9;
+}
+
+std::string BondingView::lattice_state() const {
+    const double mp = melting_now();
+    const double bp = boiling_now();
     if (finite(bp) && m_temperature >= bp) return "gas";
     if (finite(mp) && m_temperature >= mp) return "liquid";
     return "solid";
@@ -261,7 +284,7 @@ void BondingView::step_lattice(double dt) {
     if (code == 0) {
         m_assembly = std::min(1.0, m_assembly + dt / 2.4);
         const double k = ease(m_assembly);
-        double mp = m_mode == BondingMode::Ionic ? m_ionic.melting_point : m_metal.melting_point;
+        double mp = melting_now();
         if (!finite(mp)) mp = 1500.0;
         const double amp = m_options["thermal"] ? 0.07 * m_nn_distance * std::sqrt(std::max(0.0, m_temperature) / mp) : 0.0;
         for (LatticeAtom& a : m_lattice) {
@@ -535,8 +558,12 @@ std::string BondingView::ionic_readouts() {
     if (finite(c.density)) o << "Density\t" << u.format(c.density * 1000.0, "density", 4) << "\n";
     if (finite(c.electronegativity_difference)) o << "\xCE\x94\xCF\x87\t" << fixed(c.electronegativity_difference, 2) << " (" << fixed(c.percent_ionic, 0) << "% ionic)\n";
     if (finite(c.enthalpy_of_formation)) o << "\xCE\x94H\xC2\xB0" "f\t" << u.format_kj(c.enthalpy_of_formation, 4) << "\n";
-    if (finite(c.melting_point)) o << "Melting point\t" << u.format(c.melting_point, "temperature", 5) << "\n";
-    if (finite(c.boiling_point)) o << "Boiling point\t" << u.format(c.boiling_point, "temperature", 5) << "\n";
+    if (finite(c.melting_point)) o << "Melting point (1 atm)\t" << u.format(c.melting_point, "temperature", 5) << "\n";
+    if (finite(c.boiling_point)) o << "Boiling point (1 atm)\t" << u.format(c.boiling_point, "temperature", 5) << "\n";
+    if (std::fabs(m_pressure - 101325.0) > 50.0) {
+        if (finite(melting_now())) o << "Melting point at " << u.format(m_pressure, "pressure", 4) << "\t" << u.format(melting_now(), "temperature", 5) << "\n";
+        if (finite(boiling_now())) o << "Boiling point at " << u.format(m_pressure, "pressure", 4) << "\t" << u.format(boiling_now(), "temperature", 5) << "\n";
+    }
     o << "Solubility in water\t" << fc::to_string(c.solubility.solubility) << "\n";
     if (!c.solubility.rule.empty()) o << c.solubility.rule << "\n";
     o << "#At " << format_t() << "\n";
@@ -590,6 +617,55 @@ std::string BondingView::metallic_readouts() {
     o << "Composition (atoms)\t" << comp << "\n";
     o << "Type\t" << fc::to_string(m.type) << "\n";
     o << "Structure\t" << fc::to_string(m.structure) << "\n";
+    if (m.components.size() > 1) {
+        const fc::Element& host = *m.components.front().element;
+        double mass_total = 0.0;
+        for (const fc::AlloyComponent& c : m.components) mass_total += c.fraction * c.element->atomic_weight;
+        const auto mass_percent = [&](const fc::Element& e) {
+            for (const fc::AlloyComponent& c : m.components) {
+                if (c.element == &e) return mass_total > 0 ? 100.0 * c.fraction * e.atomic_weight / mass_total : 0.0;
+            }
+            return 0.0;
+        };
+        const auto passes = [&](const std::string& symbol, const std::string& rule) {
+            for (const fc::HumeRotheryCheck& c : m.checks) {
+                if (c.rule == rule && c.detail.rfind(symbol + " ", 0) == 0) return c.passes;
+            }
+            return false;
+        };
+        const auto fits = [&](const std::string& symbol) {
+            for (const fc::HumeRotheryCheck& c : m.checks) {
+                if (c.rule == "small enough to fit between atoms" && c.detail.rfind(symbol + " radius", 0) == 0) return true;
+            }
+            return false;
+        };
+        o << "#Who does what\n";
+        if (!host.is_metal()) o << "!The main element, " << host.name << ", isn't a metal, so this isn't really an alloy; make a metal the largest share\n";
+        for (std::size_t i = 0; i < m.components.size(); ++i) {
+            const fc::Element& e = *m.components[i].element;
+            const std::string label = std::string(e.symbol) + " (" + fixed(100.0 * m.components[i].fraction, 1) + "% of atoms, " + fixed(mass_percent(e), 2) + "% by mass)";
+            std::string role;
+            if (i == 0) role = std::string("base metal (the solvent): its ") + fc::to_string(m.structure) + " lattice is the alloy's";
+            else if (fits(e.symbol)) role = std::string("interstitial: small atoms tucked into the holes between the ") + host.name + " atoms; they pin the layers so they can't slide, which makes it harder and stronger but less bendable";
+            else if (passes(e.symbol, "atomic size within 15%") && passes(e.symbol, "similar electronegativity")) role = std::string("substitutional: takes the place of some ") + host.name + " atoms in the lattice; the slightly different size strains it, which makes it harder than either pure metal";
+            else role = std::string("only partly dissolves in ") + host.name + ": the rest forms separate grains or intermetallic compounds";
+            o << label << "\t" << role << "\n";
+        }
+        if (host.atomic_number == 26) {
+            const double carbon = mass_percent(fc::element(6));
+            const double chromium = mass_percent(fc::element(24));
+            if (carbon > 0.0) {
+                std::string grade;
+                if (carbon < 0.05) grade = "nearly pure iron (wrought iron)";
+                else if (carbon < 0.3) grade = "low-carbon (mild) steel: easy to shape and weld";
+                else if (carbon < 0.6) grade = "medium-carbon steel: stronger, used for gears and rails";
+                else if (carbon <= 2.1) grade = "high-carbon steel: hard, used for tools, springs and blades";
+                else grade = "cast iron: above about 2.1% carbon, the extra carbon comes out as graphite or cementite (Fe\xE2\x82\x83" "C), so it's hard but brittle";
+                o << "Carbon grade\t" << fixed(carbon, 2) << "% carbon by mass: " << grade << "\n";
+            }
+            if (chromium >= 10.5) o << "Stainless\t" << fixed(chromium, 1) << "% chromium by mass forms a thin oxide film that keeps it from rusting\n";
+        }
+    }
     if (!m.structure_note.empty()) o << m.structure_note << "\n";
     if (!m.checks.empty()) {
         o << "#Hume-Rothery rules\n";
@@ -613,10 +689,15 @@ std::string BondingView::metallic_readouts() {
     if (finite(m.fermi_velocity)) o << "Fermi velocity\t" << format_number(m.fermi_velocity, 4) << " m/s\n";
     o << "Metal cations sit in a sea of shared valence electrons; turn on Electric field to see them drift (a current).\n";
     o << "#Thermal\n";
-    if (finite(m.melting_point)) o << "Melting point\t" << u.format(m.melting_point, "temperature", 5) << "\n";
-    if (finite(m.boiling_point)) o << "Boiling point\t" << u.format(m.boiling_point, "temperature", 5) << "\n";
+    if (finite(m.melting_point)) o << "Melting point (1 atm)\t" << u.format(m.melting_point, "temperature", 5) << "\n";
+    if (finite(m.boiling_point)) o << "Boiling point (1 atm)\t" << u.format(m.boiling_point, "temperature", 5) << "\n";
+    if (std::fabs(m_pressure - 101325.0) > 50.0) {
+        if (finite(melting_now())) o << "Melting point at " << u.format(m_pressure, "pressure", 4) << "\t" << u.format(melting_now(), "temperature", 5) << "\n";
+        if (finite(boiling_now())) o << "Boiling point at " << u.format(m_pressure, "pressure", 4) << "\t" << u.format(boiling_now(), "temperature", 5) << (boiling_now() < melting_now() ? " (below the melting point: the solid sublimes)" : "") << "\n";
+        o << "Squeezing raises the melting point a little (about " << format_number((melting_now() - m.melting_point) / std::max(1.0, (m_pressure - 101325.0) / 1e9), 3) << " K per GPa, Clausius-Clapeyron) and the boiling point a lot; low pressure makes it boil far sooner.\n";
+    }
     if (finite(m.cohesive_energy)) o << "Cohesive energy\t" << u.format_kj(m.cohesive_energy, 4) << "\n";
-    o << "State at " << u.format(m_temperature, "temperature", 5) << "\t" << lattice_state() << "\n";
+    o << "State at " << u.format(m_temperature, "temperature", 5) << ", " << u.format(m_pressure, "pressure", 4) << "\t" << lattice_state() << "\n";
     try {
         const fc::TransportProperties t = fc::metal_transport(m, m_temperature, m_frequency);
         o << "#Heat at " << u.format(m_temperature, "temperature", 4) << "\n";

@@ -9,7 +9,7 @@
                 <h3 class="side-title">Predict the products</h3>
                 <text class="hint">Type only the left side. Combustion, synthesis, decomposition, single and double replacement, neutralization, oxides with water, weak acid and base ionization and esterification are recognized; equilibria get &#8652;.</text>
                 <row class="line">
-                    <input_string id="pred-left" class="grow" value="C3H8 + O2" placeholder="Zn + CuSO4, NaOH + H2SO4, CaCO3" />
+                    <input_formula id="pred-left" class="grow" value="C3H8 + O2" placeholder="Zn + CuSO4, NaOH + H2SO4, CaCO3" />
                     <button id="pred-go" class="primary small-btn">Predict</button>
                 </row>
                 <row class="line wrap">
@@ -30,12 +30,12 @@
 
                 <h3 class="side-title">Balance an equation</h3>
                 <row class="line">
-                    <input_string id="bal-left" class="grow" value="Fe + O2" placeholder="reactants" />
+                    <input_formula id="bal-left" class="grow" value="Fe + O2" placeholder="reactants" />
                     <input_select id="bal-arrow" class="arrow-select" value="->">
                         <option value="->">&#8594;</option>
                         <option value="<=>">&#8652;</option>
                     </input_select>
-                    <input_string id="bal-right" class="grow" value="Fe2O3" placeholder="products" />
+                    <input_formula id="bal-right" class="grow" value="Fe2O3" placeholder="products" />
                     <button id="bal-go" class="primary small-btn">Balance</button>
                 </row>
                 <text class="hint">Charges work too: MnO4- + Fe2+ + H+ &#8594; Mn2+ + Fe3+ + H2O.</text>
@@ -48,9 +48,9 @@
             </column>
             <column class="chem-col scroll">
                 <h3 class="side-title">How much? (stoichiometry)</h3>
-                <text class="hint">Give the amounts you have of any species (mass, moles, gas volume, or solution volume with its molarity); the rest, the limiting reactant and the yields are worked out.</text>
+                <text class="hint">Fill in the amounts you know, for reactants or products, and leave the rest blank: they're worked out, along with the limiting reactant, the yield, the heat and every gas's partial pressure. Each species has its state, which picks the units (solution volume and molarity when dissolved, a gas volume or partial pressure for a gas, a liquid volume for a liquid), and says whether the amount is what was there at the start, what was used up, what was left over, or what was made. Anything that had to be assumed is shown in orange, and a set of amounts that can't be solved says why in red.</text>
                 <row class="line">
-                    <input_string id="st-equation" class="grow" value="2 H2 + O2 -> 2 H2O" />
+                    <input_formula id="st-equation" class="grow" value="2 H2 + O2 -> 2 H2O" />
                     <button id="st-load" class="ghost">Load species</button>
                 </row>
                 <column id="st-species" class="params"></column>
@@ -62,6 +62,27 @@
                     <input_float id="st-p" class="small" value="1" />
                     <input_select id="st-p-unit" class="unit-select" dimension="pressure" value="atm"><option>atm</option></input_select>
                 </row>
+                <h3 class="side-title">Where the gases are</h3>
+                <row class="line wrap">
+                    <input_select id="st-mode" value="open">
+                        <option value="open">Open: at the pressure above</option>
+                        <option value="rigid">Closed container of fixed volume</option>
+                    </input_select>
+                    <text class="muted">Volume</text>
+                    <input_float id="st-vol" class="small" value="0" min="0" />
+                    <input_select id="st-vol-unit" class="unit-select" dimension="volume" value="L"><option>L</option></input_select>
+                </row>
+                <column class="checks">
+                    <input_bool id="st-water">Products collected over water (subtract water's vapor pressure)</input_bool>
+                    <input_bool id="st-real">Real gases (van der Waals)</input_bool>
+                </column>
+                <row class="line wrap">
+                    <text class="muted">Also in the container</text>
+                    <input_float id="st-inert" class="small" value="0" min="0" />
+                    <text class="muted">mol of</text>
+                    <input_string id="st-inert-name" class="grow" value="" placeholder="an unreactive gas, e.g. N2 or Ar" />
+                </row>
+                <text class="hint">A closed container uses its volume for the pressure before and after; in either case the volume is also used for any partial pressure that doesn't give its own. Water and other vapors condense once their partial pressure would pass their vapor pressure.</text>
                 <row class="line">
                     <text class="muted">Show masses in</text>
                     <input_select id="st-out-unit" class="unit-select" dimension="mass" value="g"><option>g</option></input_select>

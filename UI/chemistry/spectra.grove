@@ -1,0 +1,112 @@
+<!grove>
+<grove>
+    <head>
+        <title>Spectra</title>
+    </head>
+    <body>
+        <row class="chem-workspace">
+            <column class="chem-side scroll">
+                <h3 class="side-title">What to do</h3>
+                <row class="seg wrap">
+                    <button id="spe-mode-mix" class="segbtn on" title="Pick elements and amounts, see their light">Make a spectrum</button>
+                    <button id="spe-mode-identify" class="segbtn" title="Find the elements in a measured spectrum">Identify a spectrum</button>
+                    <button id="spe-mode-color" class="segbtn" title="Find which flame colors mix to a color">Identify a color</button>
+                </row>
+
+                <column id="spe-mix" class="group">
+                    <h3 class="side-title">Elements (up to 6)</h3>
+                    <input_element id="spe-elements" multiple max-selected="6" value="Na Sr Cu" />
+                    <text class="muted">Share of the atoms (the others adjust so they add to 100)</text>
+                    <column id="spe-fractions" class="params"></column>
+                    <row class="line">
+                        <text class="label-m">Show</text>
+                        <input_select id="spe-kind" class="grow" value="emission">
+                            <option value="emission">emission (a glowing gas or flame)</option>
+                            <option value="absorption">absorption (white light through a cool gas)</option>
+                        </input_select>
+                    </row>
+                </column>
+
+                <column id="spe-identify" class="group hidden">
+                    <h3 class="side-title">Measured lines or spectrum</h3>
+                    <text class="hint">Type the wavelengths you saw in nm, separated by commas or semicolons (589, 656.3, 486.1), or pairs of wavelength and brightness (589 1000; 670.8 300). A long list of evenly spaced pairs is read as a full spectrum.</text>
+                    <input_string id="spe-observed" value="670.8 900; 610.4 80; 589.0 600; 589.6 300; 460.7 400; 407.8 300" />
+                    <button id="spe-observed-go" class="primary">Identify</button>
+                    <h3 class="side-title">Or read a photo of a spectrum</h3>
+                    <text class="hint">A picture of the rainbow strip from a spectroscope or diffraction grating, laid out left to right. Say which wavelengths its left and right edges are, and which band of rows to read.</text>
+                    <input_file id="spe-image" filter="Images: *.png *.jpg *.jpeg *.bmp *.webp *.tif *.tiff *.ppm; All files: *">Choose an image...</input_file>
+                    <row class="line">
+                        <text class="label-m">Left edge</text>
+                        <input_float id="spe-left" class="grow" value="380" />
+                        <text class="muted">nm</text>
+                    </row>
+                    <row class="line">
+                        <text class="label-m">Right edge</text>
+                        <input_float id="spe-right" class="grow" value="780" />
+                        <text class="muted">nm</text>
+                    </row>
+                    <row class="line">
+                        <text class="label-m">Rows</text>
+                        <input_float id="spe-top" class="grow" value="0" min="0" max="100" />
+                        <text class="muted">to</text>
+                        <input_float id="spe-bottom" class="grow" value="100" min="0" max="100" />
+                        <text class="muted">%</text>
+                    </row>
+                    <button id="spe-image-go" class="primary">Read the image</button>
+                </column>
+
+                <column id="spe-color" class="group hidden">
+                    <h3 class="side-title">Color of the light</h3>
+                    <row class="line">
+                        <input_color id="spe-target" value="#ff6040" />
+                        <button id="spe-color-go" class="primary">Match</button>
+                    </row>
+                    <row class="line">
+                        <text class="label-m">Compare with</text>
+                        <input_select id="spe-color-basis" class="grow" value="flame">
+                            <option value="flame">flame-test colors</option>
+                            <option value="emission">glow colors from the lines</option>
+                        </input_select>
+                    </row>
+                    <text class="hint">Or take the average color of a photo (a flame, a glowing tube):</text>
+                    <input_file id="spe-color-image" filter="Images: *.png *.jpg *.jpeg *.bmp *.webp *.tif *.tiff *.ppm; All files: *">Choose an image...</input_file>
+                    <text class="hint">A color has only three numbers, so list at most three suspects below for a unique answer.</text>
+                </column>
+
+                <column id="spe-candidates-box" class="group hidden">
+                    <row class="line">
+                        <h3 class="side-title grow">Only consider</h3>
+                        <button id="spe-candidates-clear" class="ghost">Any element</button>
+                    </row>
+                    <input_element id="spe-candidates" multiple placeholder="Nothing picked: every element with known lines is tried" />
+                </column>
+
+                <h3 class="side-title">Wavelength range</h3>
+                <row class="line">
+                    <input_float id="spe-start" class="grow" value="380" />
+                    <text class="muted">to</text>
+                    <input_float id="spe-end" class="grow" value="780" />
+                    <text class="muted">nm</text>
+                </row>
+                <row class="line">
+                    <button id="spe-range-visible" class="ghost">Visible</button>
+                    <button id="spe-range-wide" class="ghost">UV to near IR</button>
+                </row>
+                <row class="line">
+                    <text class="label-m">Line width</text>
+                    <input_slider id="spe-fwhm" class="grow" min="0.1" max="10" step="0.1" value="1" />
+                </row>
+                <text class="hint">How blurry the lines are, in nm: about 0.1 for a good spectrometer, a few nm for a cheap grating.</text>
+                <row class="line">
+                    <text id="spe-status" class="hint grow"></text>
+                </row>
+            </column>
+            <column class="chem-stage">
+                <canvas id="chem-spectra-view" />
+            </column>
+            <column class="chem-info scroll">
+                <column id="spe-readouts" class="panel"></column>
+            </column>
+        </row>
+    </body>
+</grove>

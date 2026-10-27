@@ -17,9 +17,20 @@
 #include <fizmo/includes.hpp>
 #endif
 
+#if !defined(__ANDROID__)
+#ifndef FIZMO
+#define FIZMO
+#endif
+#ifndef FIZMO_GRAPHICS
+#define FIZMO_GRAPHICS
+#endif
+#include <fizmo/includes.hpp>
+#endif
+
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <cstdio>
 #include <cstdlib>
 #include <filesystem>
 #include <iostream>
@@ -74,9 +85,11 @@ std::string panel_lines(const std::string& text) {
     for (const std::string& line : split(text, '\n')) {
         if (line.empty()) continue;
         if (line[0] == '#') out += "h\t" + line.substr(1) + "\n";
-        else if (line[0] == '!') out += "w\t" + line.substr(1) + "\n";
+        else if (line[0] == '!') out += "w\t" + sapling::pretty_text(line.substr(1)) + "\n";
+        else if (line[0] == '~') out += "a\t" + sapling::pretty_text(line.substr(1)) + "\n";
+        else if (line[0] == '^') out += "x\t" + sapling::pretty_text(line.substr(1)) + "\n";
         else if (line.find('\t') != std::string::npos) out += "r\t" + line + "\n";
-        else out += "n\t" + line + "\n";
+        else out += "n\t" + sapling::pretty_text(line) + "\n";
     }
     return out;
 }
@@ -181,6 +194,8 @@ private:
         add_chem_view("kinetics", "chem-kinetics-view", make_kinetics_view(m_chem));
         add_chem_view("acidbase", "chem-acid-view", make_acidbase_view(m_chem));
         add_chem_view("phasebuild", "chem-phase-build-view", make_bonding_view(m_chem));
+        add_chem_view("spectra", "chem-spectra-view", make_spectra_view(m_chem));
+        add_chem_view("network", "chem-network-view", make_network_view(m_chem));
         for (auto& kv : m_chem_views) {
             ChemCanvas* c = kv.second.get();
             if (!c->node) continue;
@@ -312,6 +327,61 @@ private:
             } catch (const std::exception& e) {
                 return std::string("w\t") + e.what() + "\n";
             }
+        });
+        native("chem.image", [](const std::vector<std::string>& args) {
+            const auto f = fields_of(args);
+            const std::string path = arg(f, 0);
+            const std::string mode = arg(f, 1);
+            fizmo::images::BitmapImage img;
+            std::string error;
+            if (path.empty()) return std::string("error\tpick an image first");
+            if (!fizmo::images::load_image(path, img, &error) || !img.is_valid_image()) return std::string("error\tcouldn't read the image") + (error.empty() ? std::string() : ": " + error);
+            const unsigned w = img.width(), h = img.height();
+            const double top = std::max(0.0, std::min(1.0, std::atof(arg(f, 2).empty() ? "0" : arg(f, 2).c_str())));
+            const double bottom = std::max(top, std::min(1.0, std::atof(arg(f, 3).empty() ? "1" : arg(f, 3).c_str())));
+            const unsigned y0 = static_cast<unsigned>(top * (h - 1));
+            const unsigned y1 = std::max(y0, static_cast<unsigned>(bottom * (h - 1)));
+            const auto linear = [](double v) { v /= 255.0; return v <= 0.04045 ? v / 12.92 : std::pow((v + 0.055) / 1.055, 2.4); };
+            if (mode == "color") {
+                double r = 0.0, g = 0.0, b = 0.0, n = 0.0;
+                for (unsigned y = y0; y <= y1; ++y) {
+                    for (unsigned x = 0; x < w; ++x) {
+                        const auto c = img.get_pixel(x, y);
+                        const double lum = 0.2126 * linear(c.red()) + 0.7152 * linear(c.green()) + 0.0722 * linear(c.blue());
+                        if (lum < 0.02) continue;
+                        r += linear(c.red());
+                        g += linear(c.green());
+                        b += linear(c.blue());
+                        n += 1.0;
+                    }
+                }
+                if (n <= 0.0) return std::string("error\tthe image is too dark to read a color");
+                const auto enc = [](double v) {
+                    v = std::max(0.0, std::min(1.0, v));
+                    const double s = v <= 0.0031308 ? 12.92 * v : 1.055 * std::pow(v, 1.0 / 2.4) - 0.055;
+                    return static_cast<int>(std::lround(255.0 * s));
+                };
+                char buf[16];
+                std::snprintf(buf, sizeof(buf), "#%02x%02x%02x", enc(r / n), enc(g / n), enc(b / n));
+                return std::string("ok\t") + buf + "\t" + std::to_string(w) + "x" + std::to_string(h);
+            }
+            const unsigned cols = std::min(w, 1200u);
+            std::string out = "ok\t";
+            for (unsigned i = 0; i < cols; ++i) {
+                const unsigned xa = static_cast<unsigned>(static_cast<double>(i) * w / cols);
+                const unsigned xb = std::max(xa + 1, static_cast<unsigned>(static_cast<double>(i + 1) * w / cols));
+                double sum = 0.0, n = 0.0;
+                for (unsigned y = y0; y <= y1; ++y) {
+                    for (unsigned x = xa; x < xb && x < w; ++x) {
+                        const auto c = img.get_pixel(x, y);
+                        sum += std::max({ linear(c.red()), linear(c.green()), linear(c.blue()) });
+                        n += 1.0;
+                    }
+                }
+                if (i) out += ',';
+                out += std::to_string(n > 0.0 ? sum / n : 0.0);
+            }
+            return out + "\t" + std::to_string(w) + "x" + std::to_string(h);
         });
         native("chem.transfer", [this](const std::vector<std::string>& args) {
             const auto f = fields_of(args);

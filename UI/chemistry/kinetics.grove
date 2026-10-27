@@ -113,7 +113,7 @@
                     <h3 class="side-title">Maxwell-Boltzmann speeds</h3>
                     <row class="line">
                         <text class="label-m">Gas</text>
-                        <input_string id="kin-gas" class="grow" value="N2" placeholder="formula, or a molar mass in g/mol" />
+                        <input_formula id="kin-gas" class="grow" value="N2" placeholder="formula, or a molar mass in g/mol" />
                     </row>
                     <row class="line">
                         <text class="label-m">T&#8321;</text>

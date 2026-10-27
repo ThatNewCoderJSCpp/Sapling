@@ -876,6 +876,12 @@ std::string BondingView::command(const std::vector<std::string>& a) {
         changed(true);
         return "ok";
     }
+    if (c == "snap") {
+        push_undo();
+        const std::string what = snap_to_correct();
+        changed(true);
+        return "ok\t" + what;
+    }
     if (c == "tidy") {
         push_undo();
         tidy();
