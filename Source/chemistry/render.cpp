@@ -25,23 +25,13 @@ Vec3 normalized(Vec3 a) {
 
 Vec3 Camera3D::to_view(Vec3 p) const {
     const Vec3 q = p - target;
-    const double cy = std::cos(yaw), sy = std::sin(yaw);
-    const double cp = std::cos(pitch), sp = std::sin(pitch);
-    const double x1 = cy * q.x + sy * q.z;
-    const double z1 = -sy * q.x + cy * q.z;
-    const double y2 = cp * q.y - sp * z1;
-    const double z2 = sp * q.y + cp * z1;
-    return Vec3{ x1, y2, z2 };
+    const fizmo::linalg::vector3d v = axes.orbit_view(fizmo::linalg::vector3d{ q.x, q.y, q.z }, yaw, pitch);
+    return Vec3{ v.x, v.y, v.z };
 }
 
 Vec3 Camera3D::from_view(Vec3 v) const {
-    const double cy = std::cos(yaw), sy = std::sin(yaw);
-    const double cp = std::cos(pitch), sp = std::sin(pitch);
-    const double y1 = cp * v.y + sp * v.z;
-    const double z1 = -sp * v.y + cp * v.z;
-    const double qx = cy * v.x - sy * z1;
-    const double qz = sy * v.x + cy * z1;
-    return Vec3{ qx, y1, qz } + target;
+    const fizmo::linalg::vector3d q = axes.orbit_unview(fizmo::linalg::vector3d{ v.x, v.y, v.z }, yaw, pitch);
+    return Vec3{ q.x, q.y, q.z } + target;
 }
 
 namespace {

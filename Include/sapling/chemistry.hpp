@@ -4,6 +4,8 @@
 #include "sapling/canvas.hpp"
 #include "sapling/simulation.hpp"
 
+#include <fizmo/../axes.hpp>
+
 #include <filesystem>
 #include <map>
 #include <memory>
@@ -39,6 +41,7 @@ struct Camera3D {
     Vec2 pan;
     int width = 1;
     int height = 1;
+    fizmo::Axes3D axes = fizmo::Axes3D::y_up();
 
     Vec3 to_view(Vec3 world) const;
     Vec3 from_view(Vec3 view) const;
