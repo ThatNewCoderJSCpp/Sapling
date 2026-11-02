@@ -1,0 +1,12 @@
+#!/bin/sh
+set -e
+mkdir -p /usr/bin /usr/share/applications /usr/share/icons/hicolor/scalable/apps /usr/share/icons/hicolor/512x512/apps
+for exe in sapling; do
+    ln -sf /opt/sapling/$exe /usr/bin/$exe
+done
+ln -sf /opt/sapling/share/applications/sapling.desktop /usr/share/applications/sapling.desktop
+ln -sf /opt/sapling/share/icons/hicolor/scalable/apps/sapling.svg /usr/share/icons/hicolor/scalable/apps/sapling.svg
+ln -sf /opt/sapling/share/icons/hicolor/512x512/apps/sapling.png /usr/share/icons/hicolor/512x512/apps/sapling.png
+if command -v update-desktop-database > /dev/null 2>&1; then update-desktop-database -q /usr/share/applications || true; fi
+if command -v gtk-update-icon-cache > /dev/null 2>&1; then gtk-update-icon-cache -q -t /usr/share/icons/hicolor || true; fi
+exit 0

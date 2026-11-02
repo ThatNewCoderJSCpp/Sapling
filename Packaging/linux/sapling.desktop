@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Sapling
+GenericName=Physics Sandbox
+Comment=A physics and chemistry sandbox
+Exec=sapling
+Icon=sapling
+Terminal=false
+Categories=Education;Physics;Chemistry;
